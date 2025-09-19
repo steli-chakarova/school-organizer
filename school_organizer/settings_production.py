@@ -4,7 +4,13 @@ from .settings import *
 
 # Production settings
 DEBUG = False
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
+
+# Handle ALLOWED_HOSTS properly
+allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', '*')
+if allowed_hosts_env == '*':
+    ALLOWED_HOSTS = ['*']
+else:
+    ALLOWED_HOSTS = allowed_hosts_env.split(',')
 
 # Database configuration for Railway
 # Use dj-database-url to automatically parse Railway's DATABASE_URL
