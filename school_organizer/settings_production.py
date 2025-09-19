@@ -51,3 +51,6 @@ LOGGING = {
         },
     },
 }
+
+# Ensure custom user model is set
+AUTH_USER_MODEL = 'organizer.User'
