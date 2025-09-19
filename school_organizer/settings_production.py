@@ -4,7 +4,12 @@ from .settings import *
 
 # Production settings
 DEBUG = False
-ALLOWED_HOSTS = ['*', 'school-organizer-production.up.railway.app']
+ALLOWED_HOSTS = [
+    '*',
+    'school-organizer-production.up.railway.app',
+    '.up.railway.app',
+    '.railway.app'
+]
 
 # Database configuration for Railway
 # Use dj-database-url to automatically parse Railway's DATABASE_URL
@@ -54,3 +59,6 @@ LOGGING = {
 
 # Ensure custom user model is set
 AUTH_USER_MODEL = 'organizer.User'
+
+# Debug: Print ALLOWED_HOSTS to confirm it's set
+print(f"DEBUG: ALLOWED_HOSTS = {ALLOWED_HOSTS}")
