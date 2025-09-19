@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="container">
-    <h2>History{% if target_user %} - {{ target_user.username }}{% endif %}</h2>
+    <h2>{% if target_user %}{{ target_user.get_display_name }}{% else %}History{% endif %}</h2>
     
     <!-- Calendar Navigation -->
     <div class="calendar-nav">
@@ -47,8 +47,9 @@
                 <div class="calendar-day 
                     {% if day_date.month != month %}other-month{% endif %}
                     {% if day_date.day in days_with_entries %}has-entries{% endif %}
-                    {% if selected_date and day_date == selected_date %}selected{% endif %}">
-                    <span class="day-number" onclick="selectDate('{{ day_date|date:"Y-m-d" }}')" ondblclick="editDate('{{ day_date|date:"Y-m-d" }}')">{{ day_date.day }}</span>
+                    {% if selected_date and day_date == selected_date %}selected{% endif %}"
+                    onclick="selectDate('{{ day_date|date:"Y-m-d" }}')" ondblclick="editDate('{{ day_date|date:"Y-m-d" }}')">
+                    <span class="day-number">{{ day_date.day }}</span>
                     {% if day_date.day in days_with_entries %}
                     <span class="entry-indicator">●</span>
                     {% endif %}

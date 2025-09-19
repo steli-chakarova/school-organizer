@@ -1339,6 +1339,28 @@ body {
 
 
 
+/* Mobile Alias Management */
+.mobile-alias-form .mobile-form-group {
+    margin-bottom: 1rem;
+}
+
+.mobile-alias-form input[type="text"] {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--mobile-border);
+    border-radius: 6px;
+    font-size: 1rem;
+    background-color: var(--mobile-white);
+}
+
+.mobile-alias-help {
+    font-size: 0.85rem;
+    color: #666;
+    margin: 0.75rem 0 0 0;
+    font-style: italic;
+    line-height: 1.4;
+}
+
 /* Mobile Daily Data Display */
 .mobile-daily-data {
     background-color: var(--mobile-white);

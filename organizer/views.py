@@ -237,6 +237,13 @@ class HomeView(View):
                 
                 messages.success(request, 'Weekly schedule updated successfully!')
         
+        elif 'action' in request.POST and request.POST.get('action') == 'update_alias':
+            # Update user alias
+            alias = request.POST.get('alias', '').strip()
+            request.user.alias = alias if alias else None
+            request.user.save()
+            messages.success(request, 'Display name updated successfully!')
+        
         return redirect('home')
 
 

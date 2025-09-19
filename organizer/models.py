@@ -12,6 +12,7 @@ class User(AbstractUser):
     
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='teacher')
     email = models.EmailField(unique=True)
+    alias = models.CharField(max_length=50, blank=True, null=True, help_text="Display name for this user")
     
     def __str__(self):
         return f"{self.username} ({self.get_role_display()})"
@@ -32,6 +33,10 @@ class User(AbstractUser):
         if self.is_teacher() and hasattr(obj, 'created_by'):
             return obj.created_by == self
         return False
+    
+    def get_display_name(self):
+        """Get the display name (alias if set, otherwise username)"""
+        return self.alias if self.alias else self.username
 
 
 class Subject(models.Model):

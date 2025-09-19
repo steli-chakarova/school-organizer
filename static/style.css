@@ -310,9 +310,64 @@ main {
 .form-section {
     margin-bottom: 2rem;
     padding: 1.5rem;
-    background-color: #f8f8f8;
-    border-radius: 6px;
+    background-color: #fafafa;
+    border-radius: 8px;
     border-left: 4px solid #ffd700;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Alias management should match the forms-row styling */
+.alias-management {
+    background: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 15px;
+    margin-bottom: 20px;
+    border-left: 4px solid #ffd700;
+}
+
+.alias-management h3 {
+    margin-bottom: 10px;
+    font-size: 1.5em;
+    color: #2c2c2c;
+}
+
+.alias-management form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+.alias-management .form-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    flex-wrap: wrap;
+}
+
+.alias-management input[type="text"] {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 14px;
+    flex: 1;
+}
+
+.alias-management button {
+    background: #2c2c2c;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 10px 15px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.alias-management button:hover {
+    background: #1a1a1a;
 }
 
 .form-section h3 {
@@ -856,19 +911,9 @@ button:hover {
 .day-number {
     font-size: 1.1rem;
     font-weight: bold;
-    cursor: pointer;
     padding: 4px;
     border-radius: 3px;
     transition: background-color 0.2s;
-}
-
-.day-number:hover {
-    background-color: #e3f2fd;
-    color: #1976d2;
-}
-
-.day-number:active {
-    background-color: #bbdefb;
 }
 
 .entry-indicator {
@@ -1273,6 +1318,31 @@ button:hover {
     margin: 0;
     color: #6c757d;
     font-style: italic;
+}
+
+/* Alias Management */
+.alias-form .form-row {
+    display: flex;
+    gap: 1rem;
+    align-items: end;
+    margin-bottom: 0.5rem;
+}
+
+.alias-form input[type="text"] {
+    flex: 1;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+.alias-help {
+    font-size: 0.9rem;
+    color: #666;
+    margin: 0;
+    font-style: italic;
+    line-height: 1.4;
+    padding-top: 0.5rem;
 }
 
 /* Subjects and Books Management */

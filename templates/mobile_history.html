@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="mobile-container">
-    <h2 class="mobile-page-title">History{% if target_user %} - {{ target_user.username }}{% endif %}</h2>
+    <h2 class="mobile-page-title">{% if target_user %}{{ target_user.get_display_name }}{% else %}History{% endif %}</h2>
     
     <!-- Mobile Calendar Navigation -->
     <div class="mobile-calendar-nav">
@@ -51,8 +51,9 @@
                 <div class="mobile-calendar-day 
                     {% if day_date.month != month %}other-month{% endif %}
                     {% if day_date.day in days_with_entries %}has-entries{% endif %}
-                    {% if selected_date and day_date == selected_date %}selected{% endif %}">
-                    <span class="mobile-day-number" onclick="selectMobileDate('{{ day_date|date:"Y-m-d" }}')">
+                    {% if selected_date and day_date == selected_date %}selected{% endif %}"
+                    onclick="selectMobileDate('{{ day_date|date:"Y-m-d" }}')">
+                    <span class="mobile-day-number">
                         {{ day_date.day }}
                     </span>
                     {% if day_date.day in days_with_entries %}

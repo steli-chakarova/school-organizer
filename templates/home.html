@@ -14,6 +14,22 @@
     <h2>Weekly Program</h2>
     {% endif %}
     
+    <!-- User Alias Management -->
+    {% if not is_admin_view %}
+    <div class="alias-management">
+        <h3>Your Display Name</h3>
+        <form method="POST" action="{% url 'home' %}" class="alias-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_alias">
+            <div class="form-row">
+                <input type="text" name="alias" value="{{ user.alias|default:'' }}" placeholder="Enter your display name (optional)">
+                <button type="submit">Update</button>
+            </div>
+        </form>
+        <p class="alias-help">This name will be displayed in the history page instead of your username.</p>
+    </div>
+    {% endif %}
+    
     {% if user.is_admin or user.is_teacher %}
     <!-- Add Subject and Book Forms - Side by Side -->
     <div class="forms-row">

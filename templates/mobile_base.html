@@ -44,7 +44,7 @@
                 </a>
                 <div class="menu-divider"></div>
                 <div class="user-info-mobile">
-                    <span class="username">{{ user.username }}</span>
+                    <span class="username">{{ user.get_display_name }}</span>
                     <span class="user-role">{{ user.get_role_display }}</span>
                 </div>
                 <a href="{% url 'logout' %}" class="menu-item logout-item">

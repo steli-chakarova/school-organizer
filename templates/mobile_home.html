@@ -14,6 +14,23 @@
     <h2 class="mobile-page-title">Weekly Program</h2>
     {% endif %}
     
+    <!-- Mobile User Alias Management -->
+    {% if not is_admin_view %}
+    <div class="mobile-form-card">
+        <h3>Add Display Name</h3>
+        <form method="POST" action="{% url 'home' %}" class="mobile-alias-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_alias">
+            <div class="mobile-form-group">
+                <label for="alias">Display Name:</label>
+                <input type="text" name="alias" id="alias" value="{{ user.alias|default:'' }}" placeholder="Enter your display name (optional)">
+            </div>
+            <button type="submit" class="mobile-btn mobile-btn-primary">Update</button>
+        </form>
+        <p class="mobile-alias-help">This name will be displayed in the history page instead of your username.</p>
+    </div>
+    {% endif %}
+    
     {% if user.is_admin or user.is_teacher %}
     <!-- Mobile Forms Section -->
     <div class="mobile-forms-section">
