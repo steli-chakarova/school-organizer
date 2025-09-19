@@ -12,6 +12,15 @@ if allowed_hosts_env == '*':
 else:
     ALLOWED_HOSTS = allowed_hosts_env.split(',')
 
+# Add Railway-specific domains as backup
+railway_domains = [
+    'school-organizer-production.up.railway.app',
+    '.up.railway.app',
+    '.railway.app'
+]
+ALLOWED_HOSTS.extend(railway_domains)
+ALLOWED_HOSTS = list(set(ALLOWED_HOSTS))  # Remove duplicates
+
 # Database configuration for Railway
 # Use dj-database-url to automatically parse Railway's DATABASE_URL
 DATABASES = {
