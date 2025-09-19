@@ -9,11 +9,11 @@ ALLOWED_HOSTS = ['*']  # Railway will provide the domain
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('PGDATABASE'),
-        'USER': os.environ.get('PGUSER'),
-        'PASSWORD': os.environ.get('PGPASSWORD'),
-        'HOST': os.environ.get('PGHOST'),
-        'PORT': os.environ.get('PGPORT'),
+        'NAME': os.environ.get('PGDATABASE', os.environ.get('DATABASE_NAME', 'railway')),
+        'USER': os.environ.get('PGUSER', os.environ.get('DATABASE_USER', 'postgres')),
+        'PASSWORD': os.environ.get('PGPASSWORD', os.environ.get('DATABASE_PASSWORD', 'password')),
+        'HOST': os.environ.get('PGHOST', os.environ.get('DATABASE_HOST', 'localhost')),
+        'PORT': os.environ.get('PGPORT', os.environ.get('DATABASE_PORT', '5432')),
     }
 }
 

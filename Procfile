@@ -1,1 +1,1 @@
-web: gunicorn school_organizer.wsgi:application
+web: chmod +x start.sh && ./start.sh
