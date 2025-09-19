@@ -6,7 +6,7 @@ import sys
 
 def main():
     """Run administrative tasks."""
-    if os.environ.get('RAILWAY_ENVIRONMENT'):
+    if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DATABASE_URL'):
         os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'school_organizer.settings_production')
     else:
         os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'school_organizer.settings')
