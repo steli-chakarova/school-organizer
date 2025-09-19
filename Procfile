@@ -1,1 +1,0 @@
-web: python manage.py migrate && python manage.py collectstatic --noinput && gunicorn school_organizer.wsgi:application --bind 0.0.0.0:$PORT
