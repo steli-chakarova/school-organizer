@@ -4,12 +4,7 @@ from .settings import *
 
 # Production settings
 DEBUG = False
-ALLOWED_HOSTS = [
-    '*',
-    'school-organizer-production.up.railway.app',
-    '.up.railway.app',
-    '.railway.app'
-]
+ALLOWED_HOSTS = ['*']
 
 # Database configuration for Railway
 # Use dj-database-url to automatically parse Railway's DATABASE_URL
