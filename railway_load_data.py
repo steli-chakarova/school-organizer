@@ -15,9 +15,16 @@ from django.core.management.base import CommandError
 
 def load_data():
     """
-    Load data from the uploaded JSON file
+    Load data from the uploaded JSON file (only if not already loaded)
     """
     try:
+        from organizer.models import User
+        
+        # Check if data is already loaded
+        if User.objects.exists():
+            print("✅ Data already loaded, skipping...")
+            return True
+        
         print("Loading data...")
         
         # The data file should be uploaded to the app directory
