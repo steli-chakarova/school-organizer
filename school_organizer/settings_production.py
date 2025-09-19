@@ -1,29 +1,30 @@
 import os
+import dj_database_url
 from .settings import *
 
 # Production settings
 DEBUG = False
 ALLOWED_HOSTS = ['*']  # Railway will provide the domain
 
-# Database configuration for Railway PostgreSQL
-# Check if PostgreSQL environment variables are available
-if os.environ.get('PGDATABASE') or os.environ.get('DATABASE_NAME'):
+# Database configuration for Railway
+# Use dj-database-url to automatically parse Railway's DATABASE_URL
+if os.environ.get('DATABASE_URL'):
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=os.environ.get('DATABASE_URL'),
+            conn_max_age=600
+        )
+    }
+else:
+    # Use PostgreSQL with Railway's environment variables
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.environ.get('PGDATABASE', os.environ.get('DATABASE_NAME')),
-            'USER': os.environ.get('PGUSER', os.environ.get('DATABASE_USER')),
-            'PASSWORD': os.environ.get('PGPASSWORD', os.environ.get('DATABASE_PASSWORD')),
-            'HOST': os.environ.get('PGHOST', os.environ.get('DATABASE_HOST')),
-            'PORT': os.environ.get('PGPORT', os.environ.get('DATABASE_PORT')),
-        }
-    }
-else:
-    # Fallback to SQLite if no PostgreSQL is configured
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+            'NAME': os.environ.get('PGDATABASE', 'railway'),
+            'USER': os.environ.get('PGUSER', 'postgres'),
+            'PASSWORD': os.environ.get('PGPASSWORD', ''),
+            'HOST': os.environ.get('PGHOST', 'localhost'),
+            'PORT': os.environ.get('PGPORT', '5432'),
         }
     }
 
