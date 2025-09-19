@@ -6,16 +6,26 @@ DEBUG = False
 ALLOWED_HOSTS = ['*']  # Railway will provide the domain
 
 # Database configuration for Railway PostgreSQL
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('PGDATABASE', os.environ.get('DATABASE_NAME', 'railway')),
-        'USER': os.environ.get('PGUSER', os.environ.get('DATABASE_USER', 'postgres')),
-        'PASSWORD': os.environ.get('PGPASSWORD', os.environ.get('DATABASE_PASSWORD', 'password')),
-        'HOST': os.environ.get('PGHOST', os.environ.get('DATABASE_HOST', 'localhost')),
-        'PORT': os.environ.get('PGPORT', os.environ.get('DATABASE_PORT', '5432')),
+# Check if PostgreSQL environment variables are available
+if os.environ.get('PGDATABASE') or os.environ.get('DATABASE_NAME'):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('PGDATABASE', os.environ.get('DATABASE_NAME')),
+            'USER': os.environ.get('PGUSER', os.environ.get('DATABASE_USER')),
+            'PASSWORD': os.environ.get('PGPASSWORD', os.environ.get('DATABASE_PASSWORD')),
+            'HOST': os.environ.get('PGHOST', os.environ.get('DATABASE_HOST')),
+            'PORT': os.environ.get('PGPORT', os.environ.get('DATABASE_PORT')),
+        }
     }
-}
+else:
+    # Fallback to SQLite if no PostgreSQL is configured
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        }
+    }
 
 # Static files configuration
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
