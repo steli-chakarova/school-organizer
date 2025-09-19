@@ -4,7 +4,7 @@ from .settings import *
 
 # Production settings
 DEBUG = False
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 
 # Database configuration for Railway
 # Use dj-database-url to automatically parse Railway's DATABASE_URL
@@ -57,3 +57,5 @@ AUTH_USER_MODEL = 'organizer.User'
 
 # Debug: Print ALLOWED_HOSTS to confirm it's set
 print(f"DEBUG: ALLOWED_HOSTS = {ALLOWED_HOSTS}")
+print(f"DEBUG: ALLOWED_HOSTS type = {type(ALLOWED_HOSTS)}")
+print(f"DEBUG: ALLOWED_HOSTS env var = {os.environ.get('ALLOWED_HOSTS', 'NOT_SET')}")
