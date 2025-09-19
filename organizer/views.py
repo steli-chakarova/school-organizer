@@ -149,9 +149,9 @@ class ViewerOrAboveRequiredMixin(LoginRequiredMixin):
 
 class HomeView(View):
     def get(self, request):
-        # Redirect anonymous users to history page
+        # Redirect anonymous users to login page
         if not request.user.is_authenticated:
-            return redirect('history')
+            return redirect('login')
         # Show only personal projects for all users (including admin)
         subjects = Subject.objects.filter(created_by=request.user)
         # Only show schedules that reference subjects created by the current user
