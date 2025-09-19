@@ -1,0 +1,4 @@
+Django==5.2.6
+reportlab==4.2.2
+pdf2image==1.17.0
+Pillow==10.4.0

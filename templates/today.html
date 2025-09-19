@@ -1,0 +1,551 @@
+{% extends "base.html" %}
+{% load organizer_extras %}
+
+{% block title %}Today - School Organizer{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2>Today - {{ today_date|date:"l, F d, Y" }}{% if target_user != user %} - {{ target_user.username }}{% endif %}</h2>
+    <!-- Debug: can_edit = {{ can_edit }}, user.is_admin = {{ user.is_admin }}, target_user = {{ target_user.username }} -->
+    {% if not can_edit and target_user != user %}
+    <div class="readonly-notice">
+        <p>📖 You are viewing {{ target_user.username }}'s data in read-only mode. You cannot make changes.</p>
+    </div>
+    {% endif %}
+    
+    {% if not today_subjects %}
+    <div class="no-schedule-message">
+        <h3>No Schedule yet</h3>
+        <p>There are no subjects scheduled for today. Please create a weekly schedule first.</p>
+        <a href="{% url 'home' %}" class="btn btn-primary">Go to Home</a>
+    </div>
+    {% else %}
+    
+    <!-- Test button -->
+    
+    <div class="subjects-container today-page">
+        {% for subject_schedule in today_subjects %}
+            {% if subject_schedule.subject %}
+            <div class="subject-card collapsible-card" data-subject-id="{{ subject_schedule.subject.id }}">
+                <div class="card-header">
+                    <h3 class="subject-name">{{ subject_schedule.subject.name }}</h3>
+                <div class="header-controls">
+                    <span class="toggle-icon" onclick="toggleCard({{ subject_schedule.subject.id }})">▼</span>
+                </div>
+            </div>
+            <div class="card-content" id="content-{{ subject_schedule.subject.id }}" style="display: none;">
+            {% if can_edit %}
+            <form method="POST" action="{% if request.resolver_match.url_name == 'today_user_date' %}{% url 'today_user_date' username=request.resolver_match.kwargs.username user_id=request.resolver_match.kwargs.user_id date=request.resolver_match.kwargs.date %}{% elif request.resolver_match.url_name == 'today_user' %}{% url 'today_user' username=request.resolver_match.kwargs.username user_id=request.resolver_match.kwargs.user_id %}{% elif request.resolver_match.url_name == 'today_date' %}{% url 'today_date' date=request.resolver_match.kwargs.date %}{% else %}{% url 'today' %}{% endif %}" class="subject-form">
+                {% csrf_token %}
+                <input type="hidden" name="subject_id" value="{{ subject_schedule.subject.id }}">
+                
+            
+            <!-- Containers Row -->
+            <div class="containers-row">
+                <!-- Book and Pages Container -->
+                <div class="book-pages-container">
+                <div class="form-fields-row">
+                    <div class="form-group">
+                        <label>Book:</label>
+                        <select name="book_{{ subject_schedule.subject.id }}" class="book-select">
+                            <option value="">Select a book</option>
+                            {% for book in books_by_subject|lookup:subject_schedule.subject.id %}
+                            <option value="{{ book.id }}"
+                                {% for entry in existing_entries %}
+                                    {% if entry.subject.id == subject_schedule.subject.id and entry.book and entry.book.id == book.id %}
+                                    selected
+                                    {% endif %}
+                                {% endfor %}>
+                                {{ book.title }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Pages:</label>
+                        <input type="text" name="pages_{{ subject_schedule.subject.id }}" 
+                               placeholder="e.g., 45-50" class="pages-input"
+                               value="{% for entry in existing_entries %}{% if entry.subject.id == subject_schedule.subject.id %}{{ entry.pages|default:'' }}{% endif %}{% endfor %}">
+                    </div>
+                </div>
+                
+                <!-- Extra entries container -->
+                <div class="extra-entries" id="extra-{{ subject_schedule.subject.id }}">
+                {% for entry in existing_entries %}
+                    {% if entry.subject.id == subject_schedule.subject.id %}
+                        {% for extra in existing_extras %}
+                            {% if extra.daily_entry.id == entry.id %}
+                            <div class="entry-row extra-entry">
+                                <div class="form-fields-row">
+                                    <div class="form-group">
+                                        <label>Book:</label>
+                                        <select name="extra_book_{{ subject_schedule.subject.id }}_{{ forloop.counter0 }}" class="book-select">
+                                            <option value="">Select a book</option>
+                                            {% for book in books_by_subject|lookup:subject_schedule.subject.id %}
+                                            <option value="{{ book.id }}"
+                                                {% if extra.book and extra.book.id == book.id %}selected{% endif %}>
+                                                {{ book.title }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label>Pages:</label>
+                                        <input type="text" name="extra_pages_{{ subject_schedule.subject.id }}_{{ forloop.counter0 }}" 
+                                               placeholder="e.g., 45-50" class="pages-input"
+                                               value="{{ extra.pages|default:'' }}">
+                                    </div>
+                                </div>
+                                
+                                <button type="button" class="remove-extra-btn" onclick="removeExtraEntry(this)">×</button>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                {% endfor %}
+                </div>
+                
+                <button type="button" class="add-more-btn" onclick="addMoreEntry({{ subject_schedule.subject.id }})">
+                    + Add more
+                </button>
+            </div>
+            
+                <!-- Notes Container -->
+                <div class="notes-container">
+                    <div class="form-group">
+                        <label>Notes:</label>
+                        <textarea name="notes_{{ subject_schedule.subject.id }}" 
+                                  placeholder="Enter notes or comments..." 
+                                  class="notes-textarea">{% for entry in existing_entries %}{% if entry.subject.id == subject_schedule.subject.id %}{{ entry.notes|default:'' }}{% endif %}{% endfor %}</textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Homework and Important Notes Row -->
+            <div class="homework-important-row">
+                <!-- Homework section -->
+                <div class="homework-section">
+                <h4>Homework</h4>
+                <div class="homework-entries" id="homework-{{ subject_schedule.subject.id }}">
+                    {% for entry in existing_entries %}
+                        {% if entry.subject.id == subject_schedule.subject.id %}
+                            {% for homework in existing_homework %}
+                                {% if homework.daily_entry.id == entry.id %}
+                                <div class="entry-row homework-entry">
+                                    <div class="form-fields-row">
+                                        <div class="form-group">
+                                            <label>Book:</label>
+                                            <select name="homework_book_{{ subject_schedule.subject.id }}_{{ forloop.counter0 }}" class="book-select">
+                                                <option value="">Select a book</option>
+                                                {% for book in books_by_subject|lookup:subject_schedule.subject.id %}
+                                                <option value="{{ book.id }}"
+                                                    {% if homework.book and homework.book.id == book.id %}selected{% endif %}>
+                                                    {{ book.title }}
+                                                </option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label>Pages:</label>
+                                            <input type="text" name="homework_pages_{{ subject_schedule.subject.id }}_{{ forloop.counter0 }}" 
+                                                   placeholder="e.g., 45-50" class="pages-input"
+                                                   value="{{ homework.pages|default:'' }}">
+                                        </div>
+                                    </div>
+                                    
+                                    <button type="button" class="remove-homework-btn" onclick="removeHomeworkEntry(this)">×</button>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                
+                    <button type="button" class="add-homework-btn" onclick="addHomeworkEntry({{ subject_schedule.subject.id }})">
+                        + Add homework
+                    </button>
+                </div>
+                
+                <!-- Important notes section -->
+                <div class="important-notes-section">
+                <h4>Important Notes:</h4>
+                    <div class="form-group">
+                        <textarea name="important_notes_{{ subject_schedule.subject.id }}" 
+                                  class="important-notes-textarea" 
+                                  placeholder="Enter any important notes for this subject...">{% for entry in existing_entries %}{% if entry.subject.id == subject_schedule.subject.id %}{{ entry.important_notes|default:"" }}{% endif %}{% endfor %}</textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="submit-btn">Save {{ subject_schedule.subject.name }}</button>
+            </div>
+            </form>
+            {% else %}
+            <!-- Read-only view of the data -->
+            <div class="readonly-data">
+                <p>📖 This data is read-only. You cannot make changes to {{ target_user.username }}'s data.</p>
+            </div>
+            {% endif %}
+            </div>
+        </div>
+            {% endif %}
+        {% endfor %}
+        
+        <!-- Add New Subject Card -->
+        {% if can_edit %}
+        <div class="subject-card collapsible-card add-new-subject-card" data-subject-id="new">
+            <div class="card-header">
+                <h3 class="subject-name">+ Add New Subject</h3>
+                <div class="header-controls">
+                    <span class="toggle-icon" onclick="toggleCard('new')">▼</span>
+                </div>
+            </div>
+            <div class="card-content" id="content-new" style="display: none;">
+                <form method="POST" action="{% if request.resolver_match.url_name == 'today_user_date' %}{% url 'today_user_date' username=request.resolver_match.kwargs.username user_id=request.resolver_match.kwargs.user_id date=request.resolver_match.kwargs.date %}{% elif request.resolver_match.url_name == 'today_user' %}{% url 'today_user' username=request.resolver_match.kwargs.username user_id=request.resolver_match.kwargs.user_id %}{% elif request.resolver_match.url_name == 'today_date' %}{% url 'today_date' date=request.resolver_match.kwargs.date %}{% else %}{% url 'today' %}{% endif %}" class="subject-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="subject_id" value="new">
+                    <input type="hidden" name="is_new_subject" value="true">
+                    
+                    <!-- Subject Selection -->
+                    <div class="form-group">
+                        <label>Select Subject:</label>
+                        <select name="new_subject_id" id="new_subject_select" class="subject-select">
+                            <option value="">Choose a subject...</option>
+                            {% for subject in subjects %}
+                            <option value="{{ subject.id }}">{{ subject.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <!-- Containers Row -->
+                    <div class="containers-row">
+                        <!-- Book and Pages Container -->
+                        <div class="book-pages-container">
+                            <div class="form-fields-row">
+                                <div class="form-group">
+                                    <label>Book:</label>
+                                    <select name="book_new" class="book-select" id="book_select_new">
+                                        <option value="">Select a book</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Pages:</label>
+                                    <input type="text" name="pages_new" 
+                                           placeholder="e.g., 45-50" class="pages-input">
+                                </div>
+                            </div>
+                            
+                            <!-- Extra entries container -->
+                            <div class="extra-entries" id="extra-new">
+                            </div>
+                            
+                            <button type="button" class="add-more-btn" onclick="addMoreEntry('new')">
+                                + Add more
+                            </button>
+                        </div>
+                        
+                        <!-- Notes Container -->
+                        <div class="notes-container">
+                            <div class="form-group">
+                                <label>Notes:</label>
+                                <textarea name="notes_new" 
+                                          placeholder="Enter notes or comments..." 
+                                          class="notes-textarea"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Homework and Important Notes Row -->
+                    <div class="homework-important-row">
+                        <!-- Homework section -->
+                        <div class="homework-section">
+                            <h4>Homework</h4>
+                            <div class="homework-entries" id="homework-new">
+                            </div>
+                            
+                            <button type="button" class="add-homework-btn" onclick="addHomeworkEntry('new')">
+                                + Add homework
+                            </button>
+                        </div>
+                        
+                        <!-- Important notes section -->
+                        <div class="important-notes-section">
+                            <h4>Important Notes:</h4>
+                            <div class="form-group">
+                                <textarea name="important_notes_new" 
+                                          class="important-notes-textarea" 
+                                          placeholder="Enter any important notes for this subject..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="submit-btn" id="save_new_subject_btn" disabled>Save Subject</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+        
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Template for extra entries
+const extraEntryTemplate = (subjectId, count) => `
+    <div class="entry-row extra-entry">
+        <div class="form-fields-row">
+            <div class="form-group">
+                <label>Book:</label>
+                <select name="extra_book_${subjectId}_${count}" class="book-select">
+                    <option value="">Select a book</option>
+                    ${getBookOptions(subjectId)}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Pages:</label>
+                <input type="text" name="extra_pages_${subjectId}_${count}" 
+                       placeholder="e.g., 45-50" class="pages-input">
+            </div>
+        </div>
+        
+        <button type="button" class="remove-extra-btn" onclick="removeExtraEntry(this)">×</button>
+    </div>
+`;
+
+// Template for homework entries
+const homeworkEntryTemplate = (subjectId, count) => `
+    <div class="entry-row homework-entry">
+        <div class="form-fields-row">
+            <div class="form-group">
+                <label>Book:</label>
+                <select name="homework_book_${subjectId}_${count}" class="book-select">
+                    <option value="">Select a book</option>
+                    ${getBookOptions(subjectId)}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Pages:</label>
+                <input type="text" name="homework_pages_${subjectId}_${count}" 
+                       placeholder="e.g., 45-50" class="pages-input">
+            </div>
+        </div>
+        
+        <button type="button" class="remove-homework-btn" onclick="removeHomeworkEntry(this)">×</button>
+    </div>
+`;
+
+function getBookOptions(subjectId) {
+    if (subjectId === 'new') {
+        // For new subject form, get books from the new subject book select
+        const mainSelect = document.getElementById('book_select_new');
+        return mainSelect ? mainSelect.innerHTML : '<option value="">Select a book</option>';
+    } else {
+        // For existing subject forms
+        const form = document.querySelector('input[name="subject_id"][value="' + subjectId + '"]').closest('form');
+        const mainSelect = form.querySelector('select[name^="book_"]');
+        return mainSelect ? mainSelect.innerHTML : '<option value="">Select a book</option>';
+    }
+}
+
+function addMoreEntry(subjectId) {
+    const container = document.getElementById('extra-' + subjectId);
+    if (!container) return;
+    
+    const count = container.children.length;
+    const newEntry = extraEntryTemplate(subjectId, count);
+    container.insertAdjacentHTML('beforeend', newEntry);
+    updateBookOptions(subjectId);
+}
+
+function addHomeworkEntry(subjectId) {
+    const container = document.getElementById('homework-' + subjectId);
+    if (!container) return;
+    
+    const count = container.children.length;
+    const newEntry = homeworkEntryTemplate(subjectId, count);
+    container.insertAdjacentHTML('beforeend', newEntry);
+    updateBookOptions(subjectId);
+}
+
+// Remove extra entry
+function removeExtraEntry(button) {
+    button.parentElement.remove();
+}
+
+// Remove homework entry
+function removeHomeworkEntry(button) {
+    button.parentElement.remove();
+}
+
+function updateBookOptions(subjectId) {
+    let mainSelect;
+    if (subjectId === 'new') {
+        // For new subject form
+        mainSelect = document.getElementById('book_select_new');
+    } else {
+        // For existing subject forms
+        const form = document.querySelector('input[name="subject_id"][value="' + subjectId + '"]').closest('form');
+        mainSelect = form.querySelector('select[name^="book_"]');
+    }
+    
+    if (!mainSelect) return;
+    
+    const extraContainer = document.getElementById('extra-' + subjectId);
+    const homeworkContainer = document.getElementById('homework-' + subjectId);
+    
+    if (extraContainer) {
+        const extraSelects = extraContainer.querySelectorAll('select[name^="extra_book_"]');
+        extraSelects.forEach(select => {
+            const currentValue = select.value;
+            select.innerHTML = mainSelect.innerHTML;
+            select.value = currentValue;
+        });
+    }
+    
+    if (homeworkContainer) {
+        const homeworkSelects = homeworkContainer.querySelectorAll('select[name^="homework_book_"]');
+        homeworkSelects.forEach(select => {
+            const currentValue = select.value;
+            select.innerHTML = mainSelect.innerHTML;
+            select.value = currentValue;
+        });
+    }
+}
+
+
+
+function loadBooksForNewSubject(subjectId) {
+    const bookSelect = document.getElementById('book_select_new');
+    if (!bookSelect) return;
+    
+    // Clear existing options except the first one
+    while (bookSelect.children.length > 1) {
+        bookSelect.removeChild(bookSelect.lastChild);
+    }
+    
+    // Fetch books for the selected subject from the server
+    fetch(`/api/subjects-books/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.subjects) {
+                const subject = data.subjects.find(s => s.id == subjectId);
+                if (subject && subject.books) {
+                    // Add book options for the selected subject
+                    subject.books.forEach(book => {
+                        const option = document.createElement('option');
+                        option.value = book.id;
+                        option.textContent = book.title;
+                        bookSelect.appendChild(option);
+                    });
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching books:', error);
+            // Add a placeholder option
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No books available';
+            bookSelect.appendChild(option);
+        });
+}
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize all homework buttons
+    const homeworkButtons = document.querySelectorAll('.add-homework-btn');
+    homeworkButtons.forEach((button) => {
+        const form = button.closest('form');
+        const subjectId = form.querySelector('input[name="subject_id"]').value;
+        button.setAttribute('onclick', 'addHomeworkEntry(' + subjectId + ')');
+    });
+    
+    // Initialize all add more buttons
+    const addMoreButtons = document.querySelectorAll('.add-more-btn');
+    addMoreButtons.forEach((button) => {
+        const form = button.closest('form');
+        const subjectId = form.querySelector('input[name="subject_id"]').value;
+        button.setAttribute('onclick', 'addMoreEntry(' + subjectId + ')');
+    });
+    
+    
+    // Handle new subject selection
+    const newSubjectSelect = document.getElementById('new_subject_select');
+    const saveNewSubjectBtn = document.getElementById('save_new_subject_btn');
+    
+    if (newSubjectSelect && saveNewSubjectBtn) {
+        newSubjectSelect.addEventListener('change', function() {
+            const selectedSubjectId = this.value;
+            const selectedSubjectName = this.options[this.selectedIndex].text;
+            
+            if (selectedSubjectId) {
+                // Enable save button and update text
+                saveNewSubjectBtn.disabled = false;
+                saveNewSubjectBtn.textContent = 'Save ' + selectedSubjectName;
+                
+                // Load books for the selected subject
+                loadBooksForNewSubject(selectedSubjectId);
+            } else {
+                // Disable save button
+                saveNewSubjectBtn.disabled = true;
+                saveNewSubjectBtn.textContent = 'Save Subject';
+                
+                // Clear book options
+                const bookSelect = document.getElementById('book_select_new');
+                if (bookSelect) {
+                    bookSelect.innerHTML = '<option value="">Select a book</option>';
+                }
+            }
+        });
+    }
+});
+
+// Collapsible card functionality
+function toggleCard(subjectId) {
+    const content = document.getElementById('content-' + subjectId);
+    const icon = document.querySelector(`[data-subject-id="${subjectId}"] .toggle-icon`);
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▲';
+        // Store expanded state in localStorage
+        localStorage.setItem('card-' + subjectId, 'expanded');
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▼';
+        // Store collapsed state in localStorage
+        localStorage.setItem('card-' + subjectId, 'collapsed');
+    }
+}
+
+// Restore card states on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const cards = document.querySelectorAll('.collapsible-card');
+    cards.forEach(card => {
+        const subjectId = card.getAttribute('data-subject-id');
+        const content = document.getElementById('content-' + subjectId);
+        const icon = card.querySelector('.toggle-icon');
+        
+        // Check localStorage for saved state
+        const savedState = localStorage.getItem('card-' + subjectId);
+        if (savedState === 'expanded') {
+            content.style.display = 'block';
+            icon.textContent = '▲';
+        } else {
+            content.style.display = 'none';
+            icon.textContent = '▼';
+        }
+    });
+});
+
+</script>
+{% endblock %}

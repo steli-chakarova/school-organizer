@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}School Organizer{% endblock %}</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+</head>
+<body>
+    <nav>
+        <h1>School Organizer</h1>
+        <ul>
+            {% if user.is_authenticated %}
+                {% if user.is_admin or user.is_teacher %}
+                    <li><a href="{% url 'home' %}" {% if request.resolver_match.url_name == 'home' %}class="active"{% endif %}>Home</a></li>
+                    <li><a href="{% url 'today' %}" {% if request.resolver_match.url_name == 'today' %}class="active"{% endif %}>Today</a></li>
+                {% endif %}
+                {% if user.is_admin %}
+                    <li><a href="{% url 'users' %}" {% if request.resolver_match.url_name == 'users' %}class="active"{% endif %}>Users</a></li>
+                {% endif %}
+                <li><a href="{% url 'history_user' username=user.username user_id=user.id %}" {% if request.resolver_match.url_name == 'history_user' or request.resolver_match.url_name == 'history_user_date' %}class="active"{% endif %}>History</a></li>
+            {% else %}
+                <!-- Anonymous users cannot access history without user info -->
+                <li><a href="#" onclick="alert('Please log in to view history')">History</a></li>
+            {% endif %}
+        </ul>
+        <div class="user-menu">
+            {% if user.is_authenticated %}
+                <span class="user-info">
+                    Welcome, {{ user.username }} ({{ user.get_role_display }})
+                </span>
+                <a href="{% url 'logout' %}" class="logout-btn">Logout</a>
+            {% else %}
+                <a href="{% url 'login' %}" class="login-btn">Login</a>
+            {% endif %}
+        </div>
+    </nav>
+    
+    <main>
+        {% if messages %}
+            {% for message in messages %}
+                <div class="flash {{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

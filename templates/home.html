@@ -1,0 +1,786 @@
+{% extends "base.html" %}
+
+{% block title %}Weekly Program - School Organizer{% endblock %}
+
+{% block content %}
+<div class="container home-page">
+    {% if is_admin_view %}
+    <div class="admin-notice">
+        <h2>Managing {{ target_user.username }}'s Weekly Program</h2>
+        <p>You are managing the subjects, books, and schedule for {{ target_user.username }}.</p>
+        <a href="{% url 'users' %}" class="back-btn">← Back to Users</a>
+    </div>
+    {% else %}
+    <h2>Weekly Program</h2>
+    {% endif %}
+    
+    {% if user.is_admin or user.is_teacher %}
+    <!-- Add Subject and Book Forms - Side by Side -->
+    <div class="forms-row">
+        <div class="form-section">
+            <h3>Add New Subject</h3>
+            <form method="POST" action="{% if is_admin_view %}{% url 'home_user' target_user.username target_user.id %}{% else %}{% url 'home' %}{% endif %}">
+                {% csrf_token %}
+                <div class="form-row">
+                    <input type="text" name="subject_name" placeholder="Subject name" required>
+                    <button type="submit">Add Subject</button>
+                </div>
+            </form>
+        </div>
+        
+        <div class="form-section">
+            <h3>Add Book to Subject</h3>
+            <form method="POST" action="{% if is_admin_view %}{% url 'home_user' target_user.username target_user.id %}{% else %}{% url 'home' %}{% endif %}">
+                {% csrf_token %}
+                <div class="form-row">
+                    <select name="subject_id" required>
+                        <option value="">Select Subject</option>
+                        {% for subject in subjects %}
+                        <option value="{{ subject.id }}">{{ subject.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <input type="text" name="book_title" placeholder="Book title" required>
+                    <button type="submit">Add Book</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Subjects and Books Management -->
+    {% if user.is_admin or user.is_teacher %}
+    <div class="subjects-books-management">
+        <h3>Subjects and Books Management</h3>
+        <div style="margin-bottom: 10px;">
+            <span style="color: #666; font-size: 12px;">
+                Showing data for: {{ user.username }} ({{ user.get_role_display }})
+            </span>
+        </div>
+        <div class="management-table-container">
+            <table class="management-table" id="subjects-books-table">
+                <thead>
+                    <tr>
+                        <th>Subject</th>
+                        <th>Books</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="subjects-books-tbody">
+                    <!-- Dynamic content will be loaded here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Schedule Management (only show if there's an active schedule) -->
+    {% if has_active_schedule %}
+    <div class="schedule-management">
+        <h3>Schedule Management</h3>
+        <div class="schedule-actions">
+            <form method="POST" action="{% url 'schedule_manage' %}" style="display: inline;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_new">
+                <button type="submit" class="btn btn-primary">Create New Schedule</button>
+            </form>
+            <form method="POST" action="{% url 'schedule_manage' %}" style="display: inline; margin-left: 10px;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="disable_current">
+                <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to disable the current schedule?')">Disable Current Schedule</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Weekly Schedule Form -->
+    <div class="schedule-form-section">
+        <div class="schedule-form-header">
+            <h3>{% if has_active_schedule %}Edit Weekly Schedule{% else %}Create Weekly Schedule{% endif %}</h3>
+            <button type="button" class="toggle-btn" onclick="toggleScheduleForm()">
+                <span id="toggle-text">Show</span> <span id="toggle-icon">▼</span>
+            </button>
+        </div>
+        <div class="schedule-form-content" id="schedule-form-content" style="display: none;">
+            <form id="schedule-update-form" method="POST" action="{% if is_admin_view %}{% url 'home_user' target_user.username target_user.id %}{% else %}{% url 'home' %}{% endif %}">
+                {% csrf_token %}
+                <input type="hidden" name="update_schedule" value="1">
+                <div class="schedule-grid">
+                <div class="day-column">
+                    <h4>Monday</h4>
+                    <div class="subjects-list" id="subjects_1">
+                        {% for schedule_entry in schedule_by_day.1 %}
+                        <div class="subject-item">
+                            <select name="subjects_1" class="subject-select">
+                                <option value="">Select Subject</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}" {% if schedule_entry.subject.id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="remove-subject-btn" onclick="removeSubject(this)">×</button>
+                        </div>
+                        {% empty %}
+                        <div class="subject-item">
+                            <select name="subjects_1" class="subject-select">
+                                <option value="">Select Subject</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="remove-subject-btn" onclick="removeSubject(this)">×</button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button type="button" class="add-subject-btn" onclick="addSubject(1)">+ Add Subject</button>
+                </div>
+                
+                <div class="day-column">
+                    <h4>Tuesday</h4>
+                    <div class="subjects-list" id="subjects_2">
+                        {% for schedule_entry in schedule_by_day.2 %}
+                        <div class="subject-item">
+                            <select name="subjects_2" class="subject-select">
+                                <option value="">Select Subject</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}" {% if schedule_entry.subject.id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="remove-subject-btn" onclick="removeSubject(this)">×</button>
+                        </div>
+                        {% empty %}
+                        <div class="subject-item">
+                            <select name="subjects_2" class="subject-select">
+                                <option value="">Select Subject</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="remove-subject-btn" onclick="removeSubject(this)">×</button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button type="button" class="add-subject-btn" onclick="addSubject(2)">+ Add Subject</button>
+                </div>
+                
+                <div class="day-column">
+                    <h4>Wednesday</h4>
+                    <div class="subjects-list" id="subjects_3">
+                        {% for schedule_entry in schedule_by_day.3 %}
+                        <div class="subject-item">
+                            <select name="subjects_3" class="subject-select">
+                                <option value="">Select Subject</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}" {% if schedule_entry.subject.id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="remove-subject-btn" onclick="removeSubject(this)">×</button>
+                        </div>
+                        {% empty %}
+                        <div class="subject-item">
+                            <select name="subjects_3" class="subject-select">
+                                <option value="">Select Subject</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="remove-subject-btn" onclick="removeSubject(this)">×</button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button type="button" class="add-subject-btn" onclick="addSubject(3)">+ Add Subject</button>
+                </div>
+                
+                <div class="day-column">
+                    <h4>Thursday</h4>
+                    <div class="subjects-list" id="subjects_4">
+                        {% for schedule_entry in schedule_by_day.4 %}
+                        <div class="subject-item">
+                            <select name="subjects_4" class="subject-select">
+                                <option value="">Select Subject</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}" {% if schedule_entry.subject.id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="remove-subject-btn" onclick="removeSubject(this)">×</button>
+                        </div>
+                        {% empty %}
+                        <div class="subject-item">
+                            <select name="subjects_4" class="subject-select">
+                                <option value="">Select Subject</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="remove-subject-btn" onclick="removeSubject(this)">×</button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button type="button" class="add-subject-btn" onclick="addSubject(4)">+ Add Subject</button>
+                </div>
+                
+                <div class="day-column">
+                    <h4>Friday</h4>
+                    <div class="subjects-list" id="subjects_5">
+                        {% for schedule_entry in schedule_by_day.5 %}
+                        <div class="subject-item">
+                            <select name="subjects_5" class="subject-select">
+                                <option value="">Select Subject</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}" {% if schedule_entry.subject.id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="remove-subject-btn" onclick="removeSubject(this)">×</button>
+                        </div>
+                        {% empty %}
+                        <div class="subject-item">
+                            <select name="subjects_5" class="subject-select">
+                                <option value="">Select Subject</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="remove-subject-btn" onclick="removeSubject(this)">×</button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button type="button" class="add-subject-btn" onclick="addSubject(5)">+ Add Subject</button>
+                </div>
+                </div>
+            </form>
+            <div class="schedule-form-footer">
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('schedule-update-form').submit()">{% if has_active_schedule %}Update Schedule{% else %}Create Schedule{% endif %}</button>
+            </div>
+        </div>
+        </div>
+        </div>
+    </div>
+    
+    <!-- Weekly Schedule (Read-only) - only show if there's an active schedule -->
+    {% if has_active_schedule %}
+    <div class="current-schedule-section">
+        <h3>Current Weekly Schedule</h3>
+        <div class="schedule-grid">
+            <div class="day-column">
+                <h4>Monday</h4>
+                <div class="subjects-list">
+                    {% for schedule_entry in schedule_by_day.1 %}
+                    <div class="subject-item">{{ schedule_entry.subject.name }}</div>
+                    {% empty %}
+                    <div class="subject-item empty">No subjects</div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="day-column">
+                <h4>Tuesday</h4>
+                <div class="subjects-list">
+                    {% for schedule_entry in schedule_by_day.2 %}
+                    <div class="subject-item">{{ schedule_entry.subject.name }}</div>
+                    {% empty %}
+                    <div class="subject-item empty">No subjects</div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="day-column">
+                <h4>Wednesday</h4>
+                <div class="subjects-list">
+                    {% for schedule_entry in schedule_by_day.3 %}
+                    <div class="subject-item">{{ schedule_entry.subject.name }}</div>
+                    {% empty %}
+                    <div class="subject-item empty">No subjects</div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="day-column">
+                <h4>Thursday</h4>
+                <div class="subjects-list">
+                    {% for schedule_entry in schedule_by_day.4 %}
+                    <div class="subject-item">{{ schedule_entry.subject.name }}</div>
+                    {% empty %}
+                    <div class="subject-item empty">No subjects</div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="day-column">
+                <h4>Friday</h4>
+                <div class="subjects-list">
+                    {% for schedule_entry in schedule_by_day.5 %}
+                    <div class="subject-item">{{ schedule_entry.subject.name }}</div>
+                    {% empty %}
+                    <div class="subject-item empty">No subjects</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function toggleScheduleForm() {
+    const content = document.getElementById('schedule-form-content');
+    const toggleText = document.getElementById('toggle-text');
+    const toggleIcon = document.getElementById('toggle-icon');
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        toggleText.textContent = 'Hide';
+        toggleIcon.textContent = '▲';
+    } else {
+        content.style.display = 'none';
+        toggleText.textContent = 'Show';
+        toggleIcon.textContent = '▼';
+    }
+}
+
+function addSubject(dayNumber) {
+    const subjectsList = document.getElementById(`subjects_${dayNumber}`);
+    const subjectItem = document.createElement('div');
+    subjectItem.className = 'subject-item';
+    
+    // Get the subjects data from the first select (if it exists)
+    const firstSelect = subjectsList.querySelector('select');
+    let subjectsOptions = '';
+    if (firstSelect) {
+        // Copy all options from existing select
+        subjectsOptions = firstSelect.innerHTML;
+    } else {
+        // Fallback if no subjects exist yet - create basic structure
+        subjectsOptions = '<option value="">Select Subject</option>';
+    }
+    
+    subjectItem.innerHTML = `
+        <select name="subjects_${dayNumber}" class="subject-select">
+            ${subjectsOptions}
+        </select>
+        <button type="button" class="remove-subject-btn" onclick="removeSubject(this)">×</button>
+    `;
+    
+    subjectsList.appendChild(subjectItem);
+    
+    // Ensure the new select has "Select Subject" as the default selected option
+    const newSelect = subjectItem.querySelector('select');
+    newSelect.value = '';
+}
+
+// Subjects and Books Management JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    // Force refresh the subjects and books data
+    console.log('Page loaded, refreshing subjects and books...');
+    
+    // Clear any existing data first
+    const tbody = document.getElementById('subjects-books-tbody');
+    if (tbody) {
+        tbody.innerHTML = '';
+    }
+    
+    // Load fresh data
+    loadSubjectsAndBooks();
+    
+    // Handle "Add New Subject" form submission
+    const addSubjectForm = document.querySelector('form[action=""]');
+    if (addSubjectForm) {
+        addSubjectForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const subjectName = this.querySelector('input[name="subject_name"]').value.trim();
+            if (subjectName) {
+                addNewSubject(subjectName);
+                this.reset();
+            }
+        });
+    }
+    
+    // Handle "Add Book to Subject" form submission
+    const addBookForm = document.querySelector('form[action=""]:not([onsubmit])');
+    if (addBookForm && addBookForm !== addSubjectForm) {
+        addBookForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const subjectId = this.querySelector('select[name="subject"]').value;
+            const bookTitle = this.querySelector('input[name="book_title"]').value.trim();
+            if (subjectId && bookTitle) {
+                addNewBook(subjectId, bookTitle);
+                this.reset();
+            }
+        });
+    }
+});
+
+function addNewSubject(subjectName) {
+    fetch('/api/subjects-books/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            action: 'create_subject',
+            name: subjectName
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadSubjectsAndBooks(); // Reload the table
+            // Also update the subject dropdown in the schedule form
+            updateSubjectDropdowns();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error adding subject:', error);
+        alert('Error adding subject');
+    });
+}
+
+function addNewBook(subjectId, bookTitle) {
+    fetch('/api/subjects-books/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            action: 'create_book',
+            subject_id: subjectId,
+            title: bookTitle
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadSubjectsAndBooks(); // Reload the table
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error adding book:', error);
+        alert('Error adding book');
+    });
+}
+
+function updateSubjectDropdowns() {
+    // Update all subject dropdowns in the schedule form
+    fetch('/api/subjects-books/')
+        .then(response => response.json())
+        .then(data => {
+            if (data.subjects) {
+                const selects = document.querySelectorAll('select[name^="subjects_"]');
+                selects.forEach(select => {
+                    const currentValue = select.value;
+                    select.innerHTML = '<option value="">Select Subject</option>';
+                    data.subjects.forEach(subject => {
+                        const option = document.createElement('option');
+                        option.value = subject.id;
+                        option.textContent = subject.name;
+                        select.appendChild(option);
+                    });
+                    select.value = currentValue;
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error updating subject dropdowns:', error);
+        });
+}
+
+function loadSubjectsAndBooks() {
+    // Add multiple cache-busting parameters to ensure fresh data
+    const timestamp = new Date().getTime();
+    const random = Math.random();
+    fetch(`/api/subjects-books/?t=${timestamp}&r=${random}&v=2`)
+        .then(response => {
+            console.log('API Response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('API Response data:', data); // Debug logging
+            if (data.subjects) {
+                console.log('Subjects received:', data.subjects.length); // Debug logging
+                console.log('Subject names:', data.subjects.map(s => s.name)); // Debug logging
+                renderSubjectsAndBooks(data.subjects);
+            } else {
+                console.log('No subjects in response');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading subjects and books:', error);
+        });
+}
+
+function renderSubjectsAndBooks(subjects) {
+    const tbody = document.getElementById('subjects-books-tbody');
+    // Clear the table completely
+    tbody.innerHTML = '';
+    
+    console.log('Rendering subjects:', subjects.length); // Debug logging
+    
+    subjects.forEach(subject => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="subject-cell">
+                <span class="subject-name" id="subject-name-${subject.id}" onclick="toggleSubjectRename(${subject.id})" style="cursor: pointer;">${subject.name}</span>
+                <input type="text" class="subject-rename-input" id="subject-input-${subject.id}" value="${subject.name}" style="display: none;">
+            </td>
+            <td class="books-cell" id="books-cell-${subject.id}">
+                ${renderBooks(subject.books)}
+            </td>
+            <td class="actions-cell">
+                <button class="action-btn delete" onclick="deleteSubject(${subject.id})">Delete</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function renderBooks(books) {
+    if (books.length === 0) {
+        return '<span class="text-muted">No books</span>';
+    }
+    
+    return books.map(book => `
+        <span class="book-item" id="book-item-${book.id}">
+            <span class="book-title" id="book-title-${book.id}" onclick="toggleBookRename(${book.id})" style="cursor: pointer;">${book.title}</span>
+            <input type="text" class="book-rename-input" id="book-input-${book.id}" value="${book.title}" style="display: none;">
+            <button class="book-delete-btn" onclick="deleteBook(${book.id})" title="Delete book">×</button>
+        </span>
+    `).join('');
+}
+
+function toggleSubjectRename(subjectId) {
+    const nameSpan = document.getElementById(`subject-name-${subjectId}`);
+    const inputField = document.getElementById(`subject-input-${subjectId}`);
+    
+    if (nameSpan.style.display !== 'none') {
+        // Switch to edit mode
+        nameSpan.style.display = 'none';
+        inputField.style.display = 'inline-block';
+        inputField.focus();
+        inputField.select();
+    } else {
+        // Save changes
+        const newName = inputField.value.trim();
+        if (newName && newName !== nameSpan.textContent) {
+            renameSubject(subjectId, newName);
+        } else {
+            // Cancel edit
+            nameSpan.style.display = 'inline';
+            inputField.style.display = 'none';
+        }
+    }
+}
+
+function toggleBookRename(bookId) {
+    const titleSpan = document.getElementById(`book-title-${bookId}`);
+    const inputField = document.getElementById(`book-input-${bookId}`);
+    
+    if (titleSpan.style.display !== 'none') {
+        // Switch to edit mode
+        titleSpan.style.display = 'none';
+        inputField.style.display = 'inline-block';
+        inputField.focus();
+        inputField.select();
+    } else {
+        // Save changes
+        const newTitle = inputField.value.trim();
+        if (newTitle && newTitle !== titleSpan.textContent) {
+            renameBook(bookId, newTitle);
+        } else {
+            // Cancel edit
+            titleSpan.style.display = 'inline';
+            inputField.style.display = 'none';
+        }
+    }
+}
+
+function renameSubject(subjectId, newName) {
+    fetch('/api/subjects-books/', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            action: 'rename_subject',
+            id: subjectId,
+            name: newName
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const nameSpan = document.getElementById(`subject-name-${subjectId}`);
+            const inputField = document.getElementById(`subject-input-${subjectId}`);
+            
+            nameSpan.textContent = data.name;
+            nameSpan.style.display = 'inline';
+            inputField.style.display = 'none';
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error renaming subject:', error);
+        alert('Error renaming subject');
+    });
+}
+
+function renameBook(bookId, newTitle) {
+    fetch('/api/subjects-books/', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            action: 'rename_book',
+            id: bookId,
+            title: newTitle
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const titleSpan = document.getElementById(`book-title-${bookId}`);
+            const inputField = document.getElementById(`book-input-${bookId}`);
+            
+            titleSpan.textContent = data.title;
+            titleSpan.style.display = 'inline';
+            inputField.style.display = 'none';
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error renaming book:', error);
+        alert('Error renaming book');
+    });
+}
+
+function deleteSubject(subjectId) {
+    if (confirm('Are you sure you want to delete this subject? This will also delete all associated books.')) {
+        fetch('/api/subjects-books/', {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                action: 'delete_subject',
+                id: subjectId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadSubjectsAndBooks(); // Reload the table
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting subject:', error);
+            alert('Error deleting subject');
+        });
+    }
+}
+
+function deleteBook(bookId) {
+    if (confirm('Are you sure you want to delete this book?')) {
+        fetch('/api/subjects-books/', {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                action: 'delete_book',
+                id: bookId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadSubjectsAndBooks(); // Reload the table
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting book:', error);
+            alert('Error deleting book');
+        });
+    }
+}
+
+// Handle Enter key in rename inputs
+document.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        const input = e.target;
+        if (input.classList.contains('subject-rename-input')) {
+            const subjectId = input.id.replace('subject-input-', '');
+            toggleSubjectRename(parseInt(subjectId));
+        } else if (input.classList.contains('book-rename-input')) {
+            const bookId = input.id.replace('book-input-', '');
+            toggleBookRename(parseInt(bookId));
+        }
+    }
+});
+
+// Handle Escape key to cancel rename
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const input = e.target;
+        if (input.classList.contains('subject-rename-input')) {
+            const subjectId = input.id.replace('subject-input-', '');
+            const nameSpan = document.getElementById(`subject-name-${subjectId}`);
+            const inputField = document.getElementById(`subject-input-${subjectId}`);
+            
+            nameSpan.style.display = 'inline';
+            inputField.style.display = 'none';
+        } else if (input.classList.contains('book-rename-input')) {
+            const bookId = input.id.replace('book-input-', '');
+            const titleSpan = document.getElementById(`book-title-${bookId}`);
+            const inputField = document.getElementById(`book-input-${bookId}`);
+            
+            titleSpan.style.display = 'inline';
+            inputField.style.display = 'none';
+        }
+    }
+});
+
+// Function to get CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+
+function removeSubject(button) {
+    const subjectItem = button.parentElement;
+    const subjectsList = subjectItem.parentElement;
+    
+    // Don't remove if it's the last subject item
+    if (subjectsList.children.length > 1) {
+        subjectItem.remove();
+    } else {
+        // If it's the last one, just clear the selection
+        const select = subjectItem.querySelector('select');
+        select.value = '';
+    }
+}
+</script>
+{% endblock %}

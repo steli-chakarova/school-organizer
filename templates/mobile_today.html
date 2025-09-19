@@ -1,0 +1,484 @@
+{% extends "mobile_base.html" %}
+{% load organizer_extras %}
+
+{% block title %}Today - School Organizer{% endblock %}
+
+{% block content %}
+<div class="mobile-container">
+    <h2 class="mobile-page-title">
+        {{ today_date|date:"l, M d" }}{% if target_user != user %} - {{ target_user.username }}{% endif %}
+    </h2>
+    
+    {% if not can_edit and target_user != user %}
+    <div class="mobile-readonly-notice">
+        <p>📖 Viewing {{ target_user.username }}'s data (read-only)</p>
+    </div>
+    {% endif %}
+    
+    {% if not today_subjects %}
+    <div class="mobile-no-schedule">
+        <h3>No Schedule</h3>
+        <p>No subjects for today. Create a weekly schedule first.</p>
+        <a href="{% url 'home' %}" class="mobile-btn mobile-btn-primary">Go to Home</a>
+    </div>
+    {% else %}
+    
+    <div class="mobile-subjects-container">
+        {% for subject_schedule in today_subjects %}
+            {% if subject_schedule.subject %}
+            <div class="mobile-subject-card" data-subject-id="{{ subject_schedule.subject.id }}">
+                <div class="mobile-card-header" onclick="toggleMobileCard({{ subject_schedule.subject.id }})">
+                    <h3 class="mobile-subject-name">{{ subject_schedule.subject.name }}</h3>
+                    <span class="mobile-toggle-icon" id="mobile-toggle-{{ subject_schedule.subject.id }}">▼</span>
+                </div>
+                <div class="mobile-card-content" id="mobile-content-{{ subject_schedule.subject.id }}" style="display: none;">
+                    {% if can_edit %}
+                    <form method="POST" action="{% if request.resolver_match.url_name == 'today_user_date' %}{% url 'today_user_date' username=request.resolver_match.kwargs.username user_id=request.resolver_match.kwargs.user_id date=request.resolver_match.kwargs.date %}{% elif request.resolver_match.url_name == 'today_user' %}{% url 'today_user' username=request.resolver_match.kwargs.username user_id=request.resolver_match.kwargs.user_id %}{% elif request.resolver_match.url_name == 'today_date' %}{% url 'today_date' date=request.resolver_match.kwargs.date %}{% else %}{% url 'today' %}{% endif %}" class="mobile-subject-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="subject_id" value="{{ subject_schedule.subject.id }}">
+                        
+                        <!-- Book and Pages Section -->
+                        <div class="mobile-book-pages-section">
+                            <div class="mobile-form-row">
+                                <div class="mobile-form-group">
+                                    <label>Book:</label>
+                                    <select name="book_{{ subject_schedule.subject.id }}" class="mobile-book-select">
+                                        <option value="">Select book</option>
+                                        {% for book in books_by_subject|lookup:subject_schedule.subject.id %}
+                                        <option value="{{ book.id }}"
+                                            {% for entry in existing_entries %}
+                                                {% if entry.subject.id == subject_schedule.subject.id and entry.book and entry.book.id == book.id %}
+                                                selected
+                                                {% endif %}
+                                            {% endfor %}>
+                                            {{ book.title }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <div class="mobile-form-group">
+                                    <label>Pages:</label>
+                                    <input type="text" name="pages_{{ subject_schedule.subject.id }}" 
+                                           placeholder="e.g., 45-50" class="mobile-pages-input"
+                                           value="{% for entry in existing_entries %}{% if entry.subject.id == subject_schedule.subject.id %}{{ entry.pages|default:'' }}{% endif %}{% endfor %}">
+                                </div>
+                            </div>
+                            
+                            <!-- Extra entries -->
+                            <div class="mobile-extra-entries" id="mobile-extra-{{ subject_schedule.subject.id }}">
+                                {% for entry in existing_entries %}
+                                    {% if entry.subject.id == subject_schedule.subject.id %}
+                                        {% for extra in existing_extras %}
+                                            {% if extra.daily_entry.id == entry.id %}
+                                            <div class="mobile-entry-row">
+                                                <div class="mobile-form-row">
+                                                    <div class="mobile-form-group">
+                                                        <label>Book:</label>
+                                                        <select name="extra_book_{{ subject_schedule.subject.id }}_{{ forloop.counter0 }}" class="mobile-book-select">
+                                                            <option value="">Select book</option>
+                                                            {% for book in books_by_subject|lookup:subject_schedule.subject.id %}
+                                                            <option value="{{ book.id }}"
+                                                                {% if extra.book and extra.book.id == book.id %}selected{% endif %}>
+                                                                {{ book.title }}
+                                                            </option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                    
+                                                    <div class="mobile-form-group">
+                                                        <label>Pages:</label>
+                                                        <input type="text" name="extra_pages_{{ subject_schedule.subject.id }}_{{ forloop.counter0 }}" 
+                                                               placeholder="e.g., 45-50" class="mobile-pages-input"
+                                                               value="{{ extra.pages|default:'' }}">
+                                                    </div>
+                                                </div>
+                                                <button type="button" class="mobile-remove-btn" onclick="removeMobileExtra(this)">×</button>
+                                            </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            
+                            <button type="button" class="mobile-add-more-btn" onclick="addMobileExtra({{ subject_schedule.subject.id }})">
+                                + Add more
+                            </button>
+                        </div>
+                        
+                        <!-- Notes Section -->
+                        <div class="mobile-notes-section">
+                            <div class="mobile-form-group">
+                                <label>Notes:</label>
+                                <textarea name="notes_{{ subject_schedule.subject.id }}" 
+                                          placeholder="Enter notes..." 
+                                          class="mobile-notes-textarea">{% for entry in existing_entries %}{% if entry.subject.id == subject_schedule.subject.id %}{{ entry.notes|default:'' }}{% endif %}{% endfor %}</textarea>
+                            </div>
+                        </div>
+                        
+                        <!-- Homework Section -->
+                        <div class="mobile-homework-section">
+                            <h4>Homework</h4>
+                            <div class="mobile-homework-entries" id="mobile-homework-{{ subject_schedule.subject.id }}">
+                                {% for entry in existing_entries %}
+                                    {% if entry.subject.id == subject_schedule.subject.id %}
+                                        {% for homework in existing_homework %}
+                                            {% if homework.daily_entry.id == entry.id %}
+                                            <div class="mobile-entry-row">
+                                                <div class="mobile-form-row">
+                                                    <div class="mobile-form-group">
+                                                        <label>Book:</label>
+                                                        <select name="homework_book_{{ subject_schedule.subject.id }}_{{ forloop.counter0 }}" class="mobile-book-select">
+                                                            <option value="">Select book</option>
+                                                            {% for book in books_by_subject|lookup:subject_schedule.subject.id %}
+                                                            <option value="{{ book.id }}"
+                                                                {% if homework.book and homework.book.id == book.id %}selected{% endif %}>
+                                                                {{ book.title }}
+                                                            </option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                    
+                                                    <div class="mobile-form-group">
+                                                        <label>Pages:</label>
+                                                        <input type="text" name="homework_pages_{{ subject_schedule.subject.id }}_{{ forloop.counter0 }}" 
+                                                               placeholder="e.g., 45-50" class="mobile-pages-input"
+                                                               value="{{ homework.pages|default:'' }}">
+                                                    </div>
+                                                </div>
+                                                <button type="button" class="mobile-remove-btn" onclick="removeMobileHomework(this)">×</button>
+                                            </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            <button type="button" class="mobile-add-homework-btn" onclick="addMobileHomework({{ subject_schedule.subject.id }})">
+                                + Add homework
+                            </button>
+                        </div>
+                        
+                        <!-- Important Notes Section -->
+                        <div class="mobile-important-section">
+                            <h4>Important Notes</h4>
+                            <div class="mobile-form-group">
+                                <textarea name="important_notes_{{ subject_schedule.subject.id }}" 
+                                          class="mobile-important-textarea" 
+                                          placeholder="Important notes...">{% for entry in existing_entries %}{% if entry.subject.id == subject_schedule.subject.id %}{{ entry.important_notes|default:"" }}{% endif %}{% endfor %}</textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="mobile-form-actions">
+                            <button type="submit" class="mobile-btn mobile-btn-primary">Save {{ subject_schedule.subject.name }}</button>
+                        </div>
+                    </form>
+                    {% else %}
+                    <div class="mobile-readonly-data">
+                        <p>📖 Read-only data for {{ target_user.username }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        {% endfor %}
+        
+        <!-- Add New Subject Card -->
+        {% if can_edit %}
+        <div class="mobile-subject-card mobile-add-new-card" data-subject-id="new">
+            <div class="mobile-card-header" onclick="toggleMobileCard('new')">
+                <h3 class="mobile-subject-name">+ Add New Subject</h3>
+                <span class="mobile-toggle-icon" id="mobile-toggle-new">▼</span>
+            </div>
+            <div class="mobile-card-content" id="mobile-content-new" style="display: none;">
+                <form method="POST" action="{% if request.resolver_match.url_name == 'today_user_date' %}{% url 'today_user_date' username=request.resolver_match.kwargs.username user_id=request.resolver_match.kwargs.user_id date=request.resolver_match.kwargs.date %}{% elif request.resolver_match.url_name == 'today_user' %}{% url 'today_user' username=request.resolver_match.kwargs.username user_id=request.resolver_match.kwargs.user_id %}{% elif request.resolver_match.url_name == 'today_date' %}{% url 'today_date' date=request.resolver_match.kwargs.date %}{% else %}{% url 'today' %}{% endif %}" class="mobile-subject-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="subject_id" value="new">
+                    <input type="hidden" name="is_new_subject" value="true">
+                    
+                    <!-- Subject Selection -->
+                    <div class="mobile-form-group">
+                        <label>Select Subject:</label>
+                        <select name="new_subject_id" id="mobile_new_subject_select" class="mobile-subject-select">
+                            <option value="">Choose subject...</option>
+                            {% for subject in subjects %}
+                            <option value="{{ subject.id }}">{{ subject.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <!-- Book and Pages Section -->
+                    <div class="mobile-book-pages-section">
+                        <div class="mobile-form-row">
+                            <div class="mobile-form-group">
+                                <label>Book:</label>
+                                <select name="book_new" class="mobile-book-select" id="mobile_book_select_new">
+                                    <option value="">Select book</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mobile-form-group">
+                                <label>Pages:</label>
+                                <input type="text" name="pages_new" 
+                                       placeholder="e.g., 45-50" class="mobile-pages-input">
+                            </div>
+                        </div>
+                        
+                        <!-- Extra entries -->
+                        <div class="mobile-extra-entries" id="mobile-extra-new">
+                        </div>
+                        
+                        <button type="button" class="mobile-add-more-btn" onclick="addMobileExtra('new')">
+                            + Add more
+                        </button>
+                    </div>
+                    
+                    <!-- Notes Section -->
+                    <div class="mobile-notes-section">
+                        <div class="mobile-form-group">
+                            <label>Notes:</label>
+                            <textarea name="notes_new" 
+                                      placeholder="Enter notes..." 
+                                      class="mobile-notes-textarea"></textarea>
+                        </div>
+                    </div>
+                    
+                    <!-- Homework Section -->
+                    <div class="mobile-homework-section">
+                        <h4>Homework</h4>
+                        <div class="mobile-homework-entries" id="mobile-homework-new">
+                        </div>
+                        <button type="button" class="mobile-add-homework-btn" onclick="addMobileHomework('new')">
+                            + Add homework
+                        </button>
+                    </div>
+                    
+                    <!-- Important Notes Section -->
+                    <div class="mobile-important-section">
+                        <h4>Important Notes</h4>
+                        <div class="mobile-form-group">
+                            <textarea name="important_notes_new" 
+                                      class="mobile-important-textarea" 
+                                      placeholder="Important notes..."></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="mobile-form-actions">
+                        <button type="submit" class="mobile-btn mobile-btn-primary" id="mobile_save_new_subject_btn" disabled>Save Subject</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Mobile-specific JavaScript functions
+function toggleMobileCard(subjectId) {
+    const content = document.getElementById('mobile-content-' + subjectId);
+    const icon = document.getElementById('mobile-toggle-' + subjectId);
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▲';
+        localStorage.setItem('mobile-card-' + subjectId, 'expanded');
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▼';
+        localStorage.setItem('mobile-card-' + subjectId, 'collapsed');
+    }
+}
+
+// Templates for mobile entries
+const mobileExtraTemplate = (subjectId, count) => `
+    <div class="mobile-entry-row">
+        <div class="mobile-form-row">
+            <div class="mobile-form-group">
+                <label>Book:</label>
+                <select name="extra_book_${subjectId}_${count}" class="mobile-book-select">
+                    <option value="">Select book</option>
+                    ${getMobileBookOptions(subjectId)}
+                </select>
+            </div>
+            
+            <div class="mobile-form-group">
+                <label>Pages:</label>
+                <input type="text" name="extra_pages_${subjectId}_${count}" 
+                       placeholder="e.g., 45-50" class="mobile-pages-input">
+            </div>
+        </div>
+        <button type="button" class="mobile-remove-btn" onclick="removeMobileExtra(this)">×</button>
+    </div>
+`;
+
+const mobileHomeworkTemplate = (subjectId, count) => `
+    <div class="mobile-entry-row">
+        <div class="mobile-form-row">
+            <div class="mobile-form-group">
+                <label>Book:</label>
+                <select name="homework_book_${subjectId}_${count}" class="mobile-book-select">
+                    <option value="">Select book</option>
+                    ${getMobileBookOptions(subjectId)}
+                </select>
+            </div>
+            
+            <div class="mobile-form-group">
+                <label>Pages:</label>
+                <input type="text" name="homework_pages_${subjectId}_${count}" 
+                       placeholder="e.g., 45-50" class="mobile-pages-input">
+            </div>
+        </div>
+        <button type="button" class="mobile-remove-btn" onclick="removeMobileHomework(this)">×</button>
+    </div>
+`;
+
+function getMobileBookOptions(subjectId) {
+    if (subjectId === 'new') {
+        const mainSelect = document.getElementById('mobile_book_select_new');
+        return mainSelect ? mainSelect.innerHTML : '<option value="">Select book</option>';
+    } else {
+        const form = document.querySelector('input[name="subject_id"][value="' + subjectId + '"]').closest('form');
+        const mainSelect = form.querySelector('select[name^="book_"]');
+        return mainSelect ? mainSelect.innerHTML : '<option value="">Select book</option>';
+    }
+}
+
+function addMobileExtra(subjectId) {
+    const container = document.getElementById('mobile-extra-' + subjectId);
+    if (!container) return;
+    
+    const count = container.children.length;
+    const newEntry = mobileExtraTemplate(subjectId, count);
+    container.insertAdjacentHTML('beforeend', newEntry);
+    updateMobileBookOptions(subjectId);
+}
+
+function addMobileHomework(subjectId) {
+    const container = document.getElementById('mobile-homework-' + subjectId);
+    if (!container) return;
+    
+    const count = container.children.length;
+    const newEntry = mobileHomeworkTemplate(subjectId, count);
+    container.insertAdjacentHTML('beforeend', newEntry);
+    updateMobileBookOptions(subjectId);
+}
+
+function removeMobileExtra(button) {
+    button.parentElement.remove();
+}
+
+function removeMobileHomework(button) {
+    button.parentElement.remove();
+}
+
+function updateMobileBookOptions(subjectId) {
+    let mainSelect;
+    if (subjectId === 'new') {
+        mainSelect = document.getElementById('mobile_book_select_new');
+    } else {
+        const form = document.querySelector('input[name="subject_id"][value="' + subjectId + '"]').closest('form');
+        mainSelect = form.querySelector('select[name^="book_"]');
+    }
+    
+    if (!mainSelect) return;
+    
+    const extraContainer = document.getElementById('mobile-extra-' + subjectId);
+    const homeworkContainer = document.getElementById('mobile-homework-' + subjectId);
+    
+    if (extraContainer) {
+        const extraSelects = extraContainer.querySelectorAll('select[name^="extra_book_"]');
+        extraSelects.forEach(select => {
+            const currentValue = select.value;
+            select.innerHTML = mainSelect.innerHTML;
+            select.value = currentValue;
+        });
+    }
+    
+    if (homeworkContainer) {
+        const homeworkSelects = homeworkContainer.querySelectorAll('select[name^="homework_book_"]');
+        homeworkSelects.forEach(select => {
+            const currentValue = select.value;
+            select.innerHTML = mainSelect.innerHTML;
+            select.value = currentValue;
+        });
+    }
+}
+
+function loadMobileBooksForNewSubject(subjectId) {
+    const bookSelect = document.getElementById('mobile_book_select_new');
+    if (!bookSelect) return;
+    
+    while (bookSelect.children.length > 1) {
+        bookSelect.removeChild(bookSelect.lastChild);
+    }
+    
+    fetch(`/api/subjects-books/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.subjects) {
+                const subject = data.subjects.find(s => s.id == subjectId);
+                if (subject && subject.books) {
+                    subject.books.forEach(book => {
+                        const option = document.createElement('option');
+                        option.value = book.id;
+                        option.textContent = book.title;
+                        bookSelect.appendChild(option);
+                    });
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching books:', error);
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No books available';
+            bookSelect.appendChild(option);
+        });
+}
+
+// Initialize mobile page
+document.addEventListener('DOMContentLoaded', function() {
+    // Restore card states
+    const cards = document.querySelectorAll('.mobile-subject-card');
+    cards.forEach(card => {
+        const subjectId = card.getAttribute('data-subject-id');
+        const content = document.getElementById('mobile-content-' + subjectId);
+        const icon = document.getElementById('mobile-toggle-' + subjectId);
+        
+        const savedState = localStorage.getItem('mobile-card-' + subjectId);
+        if (savedState === 'expanded') {
+            content.style.display = 'block';
+            icon.textContent = '▲';
+        } else {
+            content.style.display = 'none';
+            icon.textContent = '▼';
+        }
+    });
+    
+    // Handle new subject selection
+    const newSubjectSelect = document.getElementById('mobile_new_subject_select');
+    const saveNewSubjectBtn = document.getElementById('mobile_save_new_subject_btn');
+    
+    if (newSubjectSelect && saveNewSubjectBtn) {
+        newSubjectSelect.addEventListener('change', function() {
+            const selectedSubjectId = this.value;
+            const selectedSubjectName = this.options[this.selectedIndex].text;
+            
+            if (selectedSubjectId) {
+                saveNewSubjectBtn.disabled = false;
+                saveNewSubjectBtn.textContent = 'Save ' + selectedSubjectName;
+                loadMobileBooksForNewSubject(selectedSubjectId);
+            } else {
+                saveNewSubjectBtn.disabled = true;
+                saveNewSubjectBtn.textContent = 'Save Subject';
+                const bookSelect = document.getElementById('mobile_book_select_new');
+                if (bookSelect) {
+                    bookSelect.innerHTML = '<option value="">Select book</option>';
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+{% block title %}Users Management{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Users Management</h1>
+    <p class="admin-notice">Welcome, {{ user.username }} (Admin). Manage all users and their projects.</p>
+    
+    <div class="users-list">
+        {% for user_item in users %}
+        <div class="user-card">
+            <div class="user-card-header" onclick="toggleUserCard({{ user_item.id }})">
+                <div class="user-info">
+                    <h3>{{ user_item.username }}</h3>
+                    <span class="user-role">{{ user_item.get_role_display }}</span>
+                    <span class="user-email">{{ user_item.email }}</span>
+                </div>
+                <div class="user-stats">
+                    <span class="stat-item">
+                        <strong>{{ user_item.subject_set.count }}</strong> Subjects
+                    </span>
+                    <span class="stat-item">
+                        <strong>{{ user_item.book_set.count }}</strong> Books
+                    </span>
+                    <span class="stat-item">
+                        <strong>{{ user_item.unique_days_count }}</strong> Days Logged
+                    </span>
+                </div>
+                <div class="expand-icon" id="expand-icon-{{ user_item.id }}">▼</div>
+            </div>
+            
+            <div class="user-card-content" id="user-content-{{ user_item.id }}" style="display: none;">
+                <div class="user-details">
+                    <div class="detail-section">
+                        <h4>User Information</h4>
+                        <p><strong>Username:</strong> {{ user_item.username }}</p>
+                        <p><strong>Email:</strong> {{ user_item.email }}</p>
+                        <p><strong>Role:</strong> {{ user_item.get_role_display }}</p>
+                        <p><strong>Date Joined:</strong> {{ user_item.date_joined|date:"F d, Y" }}</p>
+                        <p><strong>Last Login:</strong> {{ user_item.last_login|date:"F d, Y H:i"|default:"Never" }}</p>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h4>Quick Actions</h4>
+                        <div class="action-buttons">
+                            <a href="{% url 'history_user' user_item.username user_item.id %}" class="action-btn view-btn">
+                                View History
+                            </a>
+                            <a href="{% url 'today_user' user_item.username user_item.id %}" class="action-btn view-btn">
+                                View Today
+                            </a>
+                            <a href="{% url 'home_user' user_item.username user_item.id %}" class="action-btn view-btn">
+                                Manage Home
+                            </a>
+                            <button class="action-btn edit-btn" onclick="editUser({{ user_item.id }})">
+                                Edit User
+                            </button>
+                            {% if not user_item.is_admin %}
+                            <button class="action-btn delete-btn" onclick="deleteUser({{ user_item.id }})">
+                                Delete User
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h4>Recent Activity</h4>
+                        <div class="activity-list">
+                            <p>Subjects: {{ user_item.subject_set.count }} total</p>
+                            <p>Books: {{ user_item.book_set.count }} total</p>
+                            <p>Days Logged: {{ user_item.unique_days_count }} total</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="no-users">
+            <p>No users found in the database.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+function toggleUserCard(userId) {
+    const content = document.getElementById('user-content-' + userId);
+    const icon = document.getElementById('expand-icon-' + userId);
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▲';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▼';
+    }
+}
+
+function editUser(userId) {
+    // TODO: Implement user editing functionality
+    alert('Edit user functionality will be implemented soon.');
+}
+
+function deleteUser(userId) {
+    if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+        // TODO: Implement user deletion functionality
+        alert('Delete user functionality will be implemented soon.');
+    }
+}
+</script>
+{% endblock %}

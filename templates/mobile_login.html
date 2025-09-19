@@ -1,0 +1,38 @@
+{% extends 'mobile_base.html' %}
+
+{% block title %}Login - School Organizer{% endblock %}
+
+{% block content %}
+<div class="mobile-container">
+    <div class="mobile-auth-card">
+        <h2 class="mobile-auth-title">Login to School Organizer</h2>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div class="mobile-alert mobile-alert-{{ message.tags }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        <form method="post" class="mobile-auth-form">
+            {% csrf_token %}
+            <div class="mobile-form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            
+            <div class="mobile-form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            
+            <button type="submit" class="mobile-btn mobile-btn-primary">Login</button>
+        </form>
+        
+        <div class="mobile-auth-links">
+            <p>Don't have an account? <a href="{% url 'register' %}">Register here</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}

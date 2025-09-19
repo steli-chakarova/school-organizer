@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>{% block title %}School Organizer{% endblock %}</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'mobile_style.css' %}">
+</head>
+<body>
+    <!-- Mobile Navigation -->
+    <nav class="mobile-nav">
+        <div class="nav-header">
+            <button class="menu-toggle" onclick="toggleMobileMenu()">☰</button>
+            <h1>School Organizer</h1>
+            <div class="user-indicator">
+                {% if user.is_authenticated %}
+                    <span class="user-role">{{ user.get_role_display }}</span>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="mobile-menu" id="mobile-menu">
+            {% if user.is_authenticated %}
+                {% if user.is_admin or user.is_teacher %}
+                    <a href="{% url 'home' %}" class="menu-item {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
+                        <span class="menu-icon flat-icon home-icon"></span>
+                        <span>Home</span>
+                    </a>
+                    <a href="{% url 'today' %}" class="menu-item {% if request.resolver_match.url_name == 'today' %}active{% endif %}">
+                        <span class="menu-icon flat-icon calendar-icon"></span>
+                        <span>Today</span>
+                    </a>
+                {% endif %}
+                {% if user.is_admin %}
+                    <a href="{% url 'users' %}" class="menu-item {% if request.resolver_match.url_name == 'users' %}active{% endif %}">
+                        <span class="menu-icon flat-icon users-icon"></span>
+                        <span>Users</span>
+                    </a>
+                {% endif %}
+                <a href="{% url 'history_user' username=user.username user_id=user.id %}" class="menu-item {% if request.resolver_match.url_name == 'history_user' or request.resolver_match.url_name == 'history_user_date' %}active{% endif %}">
+                    <span class="menu-icon flat-icon history-icon"></span>
+                    <span>History</span>
+                </a>
+                <div class="menu-divider"></div>
+                <div class="user-info-mobile">
+                    <span class="username">{{ user.username }}</span>
+                    <span class="user-role">{{ user.get_role_display }}</span>
+                </div>
+                <a href="{% url 'logout' %}" class="menu-item logout-item">
+                    <span class="menu-icon flat-icon logout-icon"></span>
+                    <span>Logout</span>
+                </a>
+            {% else %}
+                <a href="{% url 'login' %}" class="menu-item">
+                    <span class="menu-icon flat-icon login-icon"></span>
+                    <span>Login</span>
+                </a>
+            {% endif %}
+        </div>
+    </nav>
+    
+    <!-- Mobile Content -->
+    <main class="mobile-main">
+        {% if messages %}
+            <div class="mobile-messages">
+                {% for message in messages %}
+                    <div class="mobile-flash {{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            const body = document.body;
+            
+            if (menu.classList.contains('open')) {
+                menu.classList.remove('open');
+                body.classList.remove('menu-open');
+            } else {
+                menu.classList.add('open');
+                body.classList.add('menu-open');
+            }
+        }
+
+        // Close menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const menu = document.getElementById('mobile-menu');
+            const toggle = document.querySelector('.menu-toggle');
+            
+            if (!menu.contains(event.target) && !toggle.contains(event.target)) {
+                menu.classList.remove('open');
+                document.body.classList.remove('menu-open');
+            }
+        });
+
+        // Close menu on window resize (landscape/portrait change)
+        window.addEventListener('resize', function() {
+            const menu = document.getElementById('mobile-menu');
+            menu.classList.remove('open');
+            document.body.classList.remove('menu-open');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,668 @@
+{% extends "mobile_base.html" %}
+
+{% block title %}Weekly Program - School Organizer{% endblock %}
+
+{% block content %}
+<div class="mobile-container">
+    {% if is_admin_view %}
+    <div class="mobile-admin-notice">
+        <h2>Managing {{ target_user.username }}'s Program</h2>
+        <p>You are managing {{ target_user.username }}'s subjects and schedule.</p>
+        <a href="{% url 'users' %}" class="mobile-back-btn">← Back to Users</a>
+    </div>
+    {% else %}
+    <h2 class="mobile-page-title">Weekly Program</h2>
+    {% endif %}
+    
+    {% if user.is_admin or user.is_teacher %}
+    <!-- Mobile Forms Section -->
+    <div class="mobile-forms-section">
+        <div class="mobile-form-card">
+            <h3>Add New Subject</h3>
+            <form method="POST" action="{% if is_admin_view %}{% url 'home_user' target_user.username target_user.id %}{% else %}{% url 'home' %}{% endif %}">
+                {% csrf_token %}
+                <div class="mobile-form-group">
+                    <label for="subject_name">Subject Name:</label>
+                    <input type="text" name="subject_name" id="subject_name" placeholder="Enter subject name" required>
+                </div>
+                <button type="submit" class="mobile-btn mobile-btn-primary">Add Subject</button>
+            </form>
+        </div>
+        
+        <div class="mobile-form-card">
+            <h3>Add Book to Subject</h3>
+            <form method="POST" action="{% if is_admin_view %}{% url 'home_user' target_user.username target_user.id %}{% else %}{% url 'home' %}{% endif %}">
+                {% csrf_token %}
+                <div class="mobile-form-group">
+                    <label for="subject_id">Select Subject:</label>
+                    <select name="subject_id" id="subject_id" required>
+                        <option value="">Choose a subject...</option>
+                        {% for subject in subjects %}
+                        <option value="{{ subject.id }}">{{ subject.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mobile-form-group">
+                    <label for="book_title">Book Title:</label>
+                    <input type="text" name="book_title" id="book_title" placeholder="Enter book title" required>
+                </div>
+                <button type="submit" class="mobile-btn mobile-btn-primary">Add Book</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Mobile Subjects Management -->
+    <div class="mobile-management-section">
+        <div class="mobile-section-header" onclick="toggleMobileSection('subjects-books')">
+            <h3>Subjects & Books</h3>
+            <span class="mobile-toggle-icon" id="mobile-toggle-subjects-books">▼</span>
+        </div>
+        <div class="mobile-section-content" id="mobile-content-subjects-books" style="display: none;">
+            <div class="mobile-info">
+                {{ user.username }} ({{ user.get_role_display }})
+            </div>
+            <div class="mobile-subjects-container" id="subjects-books-container">
+                <!-- Dynamic content will be loaded here -->
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    
+    <!-- Mobile Schedule Form -->
+    <div class="mobile-schedule-form-section">
+        <div class="mobile-schedule-header" onclick="toggleMobileScheduleForm()">
+            <h3>{% if has_active_schedule %}Edit Schedule{% else %}Create Schedule{% endif %}</h3>
+            <span class="mobile-toggle-icon" id="mobile-toggle-icon">▼</span>
+        </div>
+        <div class="mobile-schedule-content" id="mobile-schedule-content" style="display: none;">
+            <form id="mobile-schedule-form" method="POST" action="{% if is_admin_view %}{% url 'home_user' target_user.username target_user.id %}{% else %}{% url 'home' %}{% endif %}">
+                {% csrf_token %}
+                <input type="hidden" name="update_schedule" value="1">
+                
+                <!-- Mobile Schedule Days -->
+                <div class="mobile-schedule-days">
+                    <div class="mobile-day-section">
+                        <h4>Monday</h4>
+                        <div class="mobile-subjects-list" id="mobile_subjects_1">
+                            {% for schedule_entry in schedule_by_day.1 %}
+                            <div class="mobile-subject-item">
+                                <select name="subjects_1" class="mobile-subject-select">
+                                    <option value="">Select Subject</option>
+                                    {% for subject in subjects %}
+                                    <option value="{{ subject.id }}" {% if schedule_entry.subject.id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="mobile-remove-btn" onclick="removeMobileSubject(this)">×</button>
+                            </div>
+                            {% empty %}
+                            <div class="mobile-subject-item">
+                                <select name="subjects_1" class="mobile-subject-select">
+                                    <option value="">Select Subject</option>
+                                    {% for subject in subjects %}
+                                    <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="mobile-remove-btn" onclick="removeMobileSubject(this)">×</button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="mobile-add-btn" onclick="addMobileSubject(1)">+ Add Subject</button>
+                    </div>
+                    
+                    <div class="mobile-day-section">
+                        <h4>Tuesday</h4>
+                        <div class="mobile-subjects-list" id="mobile_subjects_2">
+                            {% for schedule_entry in schedule_by_day.2 %}
+                            <div class="mobile-subject-item">
+                                <select name="subjects_2" class="mobile-subject-select">
+                                    <option value="">Select Subject</option>
+                                    {% for subject in subjects %}
+                                    <option value="{{ subject.id }}" {% if schedule_entry.subject.id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="mobile-remove-btn" onclick="removeMobileSubject(this)">×</button>
+                            </div>
+                            {% empty %}
+                            <div class="mobile-subject-item">
+                                <select name="subjects_2" class="mobile-subject-select">
+                                    <option value="">Select Subject</option>
+                                    {% for subject in subjects %}
+                                    <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="mobile-remove-btn" onclick="removeMobileSubject(this)">×</button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="mobile-add-btn" onclick="addMobileSubject(2)">+ Add Subject</button>
+                    </div>
+                    
+                    <div class="mobile-day-section">
+                        <h4>Wednesday</h4>
+                        <div class="mobile-subjects-list" id="mobile_subjects_3">
+                            {% for schedule_entry in schedule_by_day.3 %}
+                            <div class="mobile-subject-item">
+                                <select name="subjects_3" class="mobile-subject-select">
+                                    <option value="">Select Subject</option>
+                                    {% for subject in subjects %}
+                                    <option value="{{ subject.id }}" {% if schedule_entry.subject.id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="mobile-remove-btn" onclick="removeMobileSubject(this)">×</button>
+                            </div>
+                            {% empty %}
+                            <div class="mobile-subject-item">
+                                <select name="subjects_3" class="mobile-subject-select">
+                                    <option value="">Select Subject</option>
+                                    {% for subject in subjects %}
+                                    <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="mobile-remove-btn" onclick="removeMobileSubject(this)">×</button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="mobile-add-btn" onclick="addMobileSubject(3)">+ Add Subject</button>
+                    </div>
+                    
+                    <div class="mobile-day-section">
+                        <h4>Thursday</h4>
+                        <div class="mobile-subjects-list" id="mobile_subjects_4">
+                            {% for schedule_entry in schedule_by_day.4 %}
+                            <div class="mobile-subject-item">
+                                <select name="subjects_4" class="mobile-subject-select">
+                                    <option value="">Select Subject</option>
+                                    {% for subject in subjects %}
+                                    <option value="{{ subject.id }}" {% if schedule_entry.subject.id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="mobile-remove-btn" onclick="removeMobileSubject(this)">×</button>
+                            </div>
+                            {% empty %}
+                            <div class="mobile-subject-item">
+                                <select name="subjects_4" class="mobile-subject-select">
+                                    <option value="">Select Subject</option>
+                                    {% for subject in subjects %}
+                                    <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="mobile-remove-btn" onclick="removeMobileSubject(this)">×</button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="mobile-add-btn" onclick="addMobileSubject(4)">+ Add Subject</button>
+                    </div>
+                    
+                    <div class="mobile-day-section">
+                        <h4>Friday</h4>
+                        <div class="mobile-subjects-list" id="mobile_subjects_5">
+                            {% for schedule_entry in schedule_by_day.5 %}
+                            <div class="mobile-subject-item">
+                                <select name="subjects_5" class="mobile-subject-select">
+                                    <option value="">Select Subject</option>
+                                    {% for subject in subjects %}
+                                    <option value="{{ subject.id }}" {% if schedule_entry.subject.id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="mobile-remove-btn" onclick="removeMobileSubject(this)">×</button>
+                            </div>
+                            {% empty %}
+                            <div class="mobile-subject-item">
+                                <select name="subjects_5" class="mobile-subject-select">
+                                    <option value="">Select Subject</option>
+                                    {% for subject in subjects %}
+                                    <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="mobile-remove-btn" onclick="removeMobileSubject(this)">×</button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="mobile-add-btn" onclick="addMobileSubject(5)">+ Add Subject</button>
+                    </div>
+                </div>
+            </form>
+            <div class="mobile-schedule-footer">
+                <button type="button" class="mobile-btn mobile-btn-primary" onclick="document.getElementById('mobile-schedule-form').submit()">
+                    {% if has_active_schedule %}Update Schedule{% else %}Create Schedule{% endif %}
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Mobile Current Schedule Display -->
+    {% if has_active_schedule %}
+    <div class="mobile-current-schedule">
+        <div class="mobile-schedule-header" onclick="toggleMobileSection('current-schedule')">
+            <h3>Current Schedule</h3>
+            <span class="mobile-toggle-icon" id="mobile-toggle-current-schedule">▼</span>
+        </div>
+        <div class="mobile-section-content" id="mobile-content-current-schedule" style="display: none;">
+            <div class="mobile-schedule-display">
+                <div class="mobile-day-display">
+                    <h4>Monday</h4>
+                    <div class="mobile-subjects-display">
+                        {% for schedule_entry in schedule_by_day.1 %}
+                        <div class="mobile-subject-numbered">{{ forloop.counter }}. {{ schedule_entry.subject.name }}</div>
+                        {% empty %}
+                        <span class="mobile-no-subjects">No subjects</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="mobile-day-display">
+                    <h4>Tuesday</h4>
+                    <div class="mobile-subjects-display">
+                        {% for schedule_entry in schedule_by_day.2 %}
+                        <div class="mobile-subject-numbered">{{ forloop.counter }}. {{ schedule_entry.subject.name }}</div>
+                        {% empty %}
+                        <span class="mobile-no-subjects">No subjects</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="mobile-day-display">
+                    <h4>Wednesday</h4>
+                    <div class="mobile-subjects-display">
+                        {% for schedule_entry in schedule_by_day.3 %}
+                        <div class="mobile-subject-numbered">{{ forloop.counter }}. {{ schedule_entry.subject.name }}</div>
+                        {% empty %}
+                        <span class="mobile-no-subjects">No subjects</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="mobile-day-display">
+                    <h4>Thursday</h4>
+                    <div class="mobile-subjects-display">
+                        {% for schedule_entry in schedule_by_day.4 %}
+                        <div class="mobile-subject-numbered">{{ forloop.counter }}. {{ schedule_entry.subject.name }}</div>
+                        {% empty %}
+                        <span class="mobile-no-subjects">No subjects</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="mobile-day-display">
+                    <h4>Friday</h4>
+                    <div class="mobile-subjects-display">
+                        {% for schedule_entry in schedule_by_day.5 %}
+                        <div class="mobile-subject-numbered">{{ forloop.counter }}. {{ schedule_entry.subject.name }}</div>
+                        {% empty %}
+                        <span class="mobile-no-subjects">No subjects</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Mobile Schedule Management -->
+    {% if has_active_schedule %}
+    <div class="mobile-schedule-management">
+        <h3>Schedule Management</h3>
+        <div class="mobile-schedule-actions">
+            <form method="POST" action="{% url 'schedule_manage' %}" style="display: inline;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_new">
+                <button type="submit" class="mobile-btn mobile-btn-primary">New Schedule</button>
+            </form>
+            <form method="POST" action="{% url 'schedule_manage' %}" style="display: inline;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="disable_current">
+                <button type="submit" class="mobile-btn mobile-btn-danger" onclick="return confirm('Delete current schedule?')">Delete</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Mobile-specific JavaScript functions
+function toggleMobileScheduleForm() {
+    const content = document.getElementById('mobile-schedule-content');
+    const icon = document.getElementById('mobile-toggle-icon');
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▲';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▼';
+    }
+}
+
+function toggleMobileSection(sectionId) {
+    const content = document.getElementById('mobile-content-' + sectionId);
+    const icon = document.getElementById('mobile-toggle-' + sectionId);
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▲';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▼';
+    }
+}
+
+function addMobileSubject(dayNumber) {
+    const subjectsList = document.getElementById(`mobile_subjects_${dayNumber}`);
+    const subjectItem = document.createElement('div');
+    subjectItem.className = 'mobile-subject-item';
+    
+    const firstSelect = subjectsList.querySelector('select');
+    let subjectsOptions = '';
+    if (firstSelect) {
+        subjectsOptions = firstSelect.innerHTML;
+    } else {
+        subjectsOptions = '<option value="">Select Subject</option>';
+    }
+    
+    subjectItem.innerHTML = `
+        <select name="subjects_${dayNumber}" class="mobile-subject-select">
+            ${subjectsOptions}
+        </select>
+        <button type="button" class="mobile-remove-btn" onclick="removeMobileSubject(this)">×</button>
+    `;
+    
+    subjectsList.appendChild(subjectItem);
+    const newSelect = subjectItem.querySelector('select');
+    newSelect.value = '';
+}
+
+function removeMobileSubject(button) {
+    const subjectItem = button.parentElement;
+    const subjectsList = subjectItem.parentElement;
+    
+    if (subjectsList.children.length > 1) {
+        subjectItem.remove();
+    } else {
+        const select = subjectItem.querySelector('select');
+        select.value = '';
+    }
+}
+
+// Include all the existing JavaScript functions for subjects and books management
+// (Same as the original home.html but adapted for mobile)
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Mobile page loaded, refreshing subjects and books...');
+    
+    const tbody = document.getElementById('subjects-books-tbody');
+    if (tbody) {
+        tbody.innerHTML = '';
+    }
+    
+    loadSubjectsAndBooks();
+});
+
+function loadSubjectsAndBooks() {
+    const timestamp = new Date().getTime();
+    const random = Math.random();
+    fetch(`/api/subjects-books/?t=${timestamp}&r=${random}&v=2`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.subjects) {
+                renderSubjectsAndBooks(data.subjects);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading subjects and books:', error);
+        });
+}
+
+function renderSubjectsAndBooks(subjects) {
+    const container = document.getElementById('subjects-books-container');
+    container.innerHTML = '';
+    
+    subjects.forEach(subject => {
+        const card = document.createElement('div');
+        card.className = 'mobile-subject-book-card';
+        card.innerHTML = `
+            <div class="mobile-subject-header">
+                <h4 class="mobile-subject-name" id="subject-name-${subject.id}" onclick="toggleSubjectRename(${subject.id})">${subject.name}</h4>
+                <input type="text" class="mobile-subject-rename-input" id="subject-input-${subject.id}" value="${subject.name}" style="display: none;">
+                <div class="mobile-subject-actions">
+                    <button class="mobile-action-btn mobile-delete-btn" onclick="deleteSubject(${subject.id})">Delete</button>
+                </div>
+            </div>
+            <div class="mobile-books-section">
+                <div class="mobile-books-title">Books:</div>
+                <div class="mobile-books-list" id="books-cell-${subject.id}">
+                    ${renderBooks(subject.books)}
+                </div>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+function renderBooks(books) {
+    if (books.length === 0) {
+        return '<div class="mobile-text-muted" style="padding: 1rem; text-align: center; color: #6c757d; font-style: italic;">No books added yet</div>';
+    }
+    
+    return books.map(book => `
+        <div class="mobile-book-item" id="book-item-${book.id}">
+            <span class="mobile-book-title" id="book-title-${book.id}" onclick="toggleBookRename(${book.id})">${book.title}</span>
+            <input type="text" class="mobile-book-rename-input" id="book-input-${book.id}" value="${book.title}" style="display: none;">
+            <button class="mobile-book-delete-btn" onclick="deleteBook(${book.id})">×</button>
+        </div>
+    `).join('');
+}
+
+function toggleSubjectRename(subjectId) {
+    const nameSpan = document.getElementById(`subject-name-${subjectId}`);
+    const inputField = document.getElementById(`subject-input-${subjectId}`);
+    
+    if (nameSpan.style.display !== 'none') {
+        nameSpan.style.display = 'none';
+        inputField.style.display = 'inline-block';
+        inputField.focus();
+        inputField.select();
+    } else {
+        const newName = inputField.value.trim();
+        if (newName && newName !== nameSpan.textContent) {
+            renameSubject(subjectId, newName);
+        } else {
+            nameSpan.style.display = 'inline';
+            inputField.style.display = 'none';
+        }
+    }
+}
+
+function toggleBookRename(bookId) {
+    const titleSpan = document.getElementById(`book-title-${bookId}`);
+    const inputField = document.getElementById(`book-input-${bookId}`);
+    
+    if (titleSpan.style.display !== 'none') {
+        titleSpan.style.display = 'none';
+        inputField.style.display = 'inline-block';
+        inputField.focus();
+        inputField.select();
+    } else {
+        const newTitle = inputField.value.trim();
+        if (newTitle && newTitle !== titleSpan.textContent) {
+            renameBook(bookId, newTitle);
+        } else {
+            titleSpan.style.display = 'inline';
+            inputField.style.display = 'none';
+        }
+    }
+}
+
+function renameSubject(subjectId, newName) {
+    fetch('/api/subjects-books/', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            action: 'rename_subject',
+            id: subjectId,
+            name: newName
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const nameSpan = document.getElementById(`subject-name-${subjectId}`);
+            const inputField = document.getElementById(`subject-input-${subjectId}`);
+            
+            nameSpan.textContent = data.name;
+            nameSpan.style.display = 'inline';
+            inputField.style.display = 'none';
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error renaming subject:', error);
+        alert('Error renaming subject');
+    });
+}
+
+function renameBook(bookId, newTitle) {
+    fetch('/api/subjects-books/', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            action: 'rename_book',
+            id: bookId,
+            title: newTitle
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const titleSpan = document.getElementById(`book-title-${bookId}`);
+            const inputField = document.getElementById(`book-input-${bookId}`);
+            
+            titleSpan.textContent = data.title;
+            titleSpan.style.display = 'inline';
+            inputField.style.display = 'none';
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error renaming book:', error);
+        alert('Error renaming book');
+    });
+}
+
+function deleteSubject(subjectId) {
+    if (confirm('Delete this subject and all its books?')) {
+        fetch('/api/subjects-books/', {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                action: 'delete_subject',
+                id: subjectId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadSubjectsAndBooks();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting subject:', error);
+            alert('Error deleting subject');
+        });
+    }
+}
+
+function deleteBook(bookId) {
+    if (confirm('Delete this book?')) {
+        fetch('/api/subjects-books/', {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                action: 'delete_book',
+                id: bookId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadSubjectsAndBooks();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting book:', error);
+            alert('Error deleting book');
+        });
+    }
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Handle Enter key in rename inputs
+document.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        const input = e.target;
+        if (input.classList.contains('mobile-subject-rename-input')) {
+            const subjectId = input.id.replace('subject-input-', '');
+            toggleSubjectRename(parseInt(subjectId));
+        } else if (input.classList.contains('mobile-book-rename-input')) {
+            const bookId = input.id.replace('book-input-', '');
+            toggleBookRename(parseInt(bookId));
+        }
+    }
+});
+
+// Handle Escape key to cancel rename
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const input = e.target;
+        if (input.classList.contains('mobile-subject-rename-input')) {
+            const subjectId = input.id.replace('subject-input-', '');
+            const nameSpan = document.getElementById(`subject-name-${subjectId}`);
+            const inputField = document.getElementById(`subject-input-${subjectId}`);
+            
+            nameSpan.style.display = 'inline';
+            inputField.style.display = 'none';
+        } else if (input.classList.contains('mobile-book-rename-input')) {
+            const bookId = input.id.replace('book-input-', '');
+            const titleSpan = document.getElementById(`book-title-${bookId}`);
+            const inputField = document.getElementById(`book-input-${bookId}`);
+            
+            titleSpan.style.display = 'inline';
+            inputField.style.display = 'none';
+        }
+    }
+});
+</script>
+{% endblock %}
