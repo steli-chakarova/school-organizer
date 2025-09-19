@@ -50,6 +50,13 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-railway-deployment-ke
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
+# CSRF settings for Railway
+CSRF_TRUSTED_ORIGINS = [
+    'https://school-organizer-production.up.railway.app',
+    'https://*.up.railway.app',
+    'https://*.railway.app',
+]
+
 # Logging
 LOGGING = {
     'version': 1,
