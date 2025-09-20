@@ -238,6 +238,62 @@
                         </div>
                         <button type="button" class="mobile-add-btn" onclick="addMobileSubject(5)">+ Add Subject</button>
                     </div>
+                    
+                    <div class="mobile-day-section">
+                        <h4>Saturday</h4>
+                        <div class="mobile-subjects-list" id="mobile_subjects_6">
+                            {% for schedule_entry in schedule_by_day.6 %}
+                            <div class="mobile-subject-item">
+                                <select name="subjects_6" class="mobile-subject-select">
+                                    <option value="">Select Subject</option>
+                                    {% for subject in subjects %}
+                                    <option value="{{ subject.id }}" {% if schedule_entry.subject.id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="mobile-remove-btn" onclick="removeMobileSubject(this)">×</button>
+                            </div>
+                            {% empty %}
+                            <div class="mobile-subject-item">
+                                <select name="subjects_6" class="mobile-subject-select">
+                                    <option value="">Select Subject</option>
+                                    {% for subject in subjects %}
+                                    <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="mobile-remove-btn" onclick="removeMobileSubject(this)">×</button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="mobile-add-btn" onclick="addMobileSubject(6)">+ Add Subject</button>
+                    </div>
+                    
+                    <div class="mobile-day-section">
+                        <h4>Sunday</h4>
+                        <div class="mobile-subjects-list" id="mobile_subjects_7">
+                            {% for schedule_entry in schedule_by_day.7 %}
+                            <div class="mobile-subject-item">
+                                <select name="subjects_7" class="mobile-subject-select">
+                                    <option value="">Select Subject</option>
+                                    {% for subject in subjects %}
+                                    <option value="{{ subject.id }}" {% if schedule_entry.subject.id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="mobile-remove-btn" onclick="removeMobileSubject(this)">×</button>
+                            </div>
+                            {% empty %}
+                            <div class="mobile-subject-item">
+                                <select name="subjects_7" class="mobile-subject-select">
+                                    <option value="">Select Subject</option>
+                                    {% for subject in subjects %}
+                                    <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="mobile-remove-btn" onclick="removeMobileSubject(this)">×</button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="mobile-add-btn" onclick="addMobileSubject(7)">+ Add Subject</button>
+                    </div>
                 </div>
             </form>
             <div class="mobile-schedule-footer">
@@ -311,6 +367,28 @@
                         {% endfor %}
                     </div>
                 </div>
+                
+                {% if schedule_by_day.6 %}
+                <div class="mobile-day-display">
+                    <h4>Saturday</h4>
+                    <div class="mobile-subjects-display">
+                        {% for schedule_entry in schedule_by_day.6 %}
+                        <div class="mobile-subject-numbered">{{ forloop.counter }}. {{ schedule_entry.subject.name }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if schedule_by_day.7 %}
+                <div class="mobile-day-display">
+                    <h4>Sunday</h4>
+                    <div class="mobile-subjects-display">
+                        {% for schedule_entry in schedule_by_day.7 %}
+                        <div class="mobile-subject-numbered">{{ forloop.counter }}. {{ schedule_entry.subject.name }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
             
         </div>

@@ -152,6 +152,11 @@ class HomeView(View):
         # Redirect anonymous users to login page
         if not request.user.is_authenticated:
             return redirect('login')
+        
+        # Clear any target_user_id from session for regular users
+        if 'target_user_id' in request.session:
+            del request.session['target_user_id']
+        
         # Show only personal projects for all users (including admin)
         subjects = Subject.objects.filter(created_by=request.user)
         # Only show schedules that reference subjects created by the current user
@@ -215,7 +220,7 @@ class HomeView(View):
                 else:
                     WeeklySchedule.objects.filter(created_by=request.user, is_active=True).update(is_active=False)
                 
-                for day in range(1, 6):  # Monday to Friday
+                for day in range(1, 8):  # Monday to Sunday
                     subjects = request.POST.getlist(f'subjects_{day}')
                     # Filter out empty values
                     subjects = [s for s in subjects if s.strip()]
@@ -338,7 +343,7 @@ class HomeUserView(LoginRequiredMixin, View):
                 # Disable old schedules for target user
                 WeeklySchedule.objects.filter(created_by=target_user, is_active=True).update(is_active=False)
                 
-                for day in range(1, 6):  # Monday to Friday
+                for day in range(1, 8):  # Monday to Sunday
                     subjects = request.POST.getlist(f'subjects_{day}')
                     # Filter out empty values
                     subjects = [s for s in subjects if s.strip()]
@@ -370,7 +375,7 @@ class HomeUserView(LoginRequiredMixin, View):
                     WeeklySchedule.objects.filter(created_by=target_user, is_active=True).update(is_active=False)
                     
                     # Create empty schedule for each day
-                    for day in range(1, 6):  # Monday to Friday
+                    for day in range(1, 8):  # Monday to Sunday
                         WeeklySchedule.objects.create(
                             day_of_week=day,
                             subject=None,  # Empty subject
@@ -387,9 +392,9 @@ class HomeUserView(LoginRequiredMixin, View):
                     disabled_count = WeeklySchedule.objects.filter(created_by=target_user, is_active=True).update(is_active=False)
                     
                     if disabled_count > 0:
-                        messages.success(request, f'Disabled {disabled_count} schedule entries for {target_user.username}!')
+                        messages.success(request, f'Deleted {disabled_count} schedule entries for {target_user.username}!')
                     else:
-                        messages.info(request, f'No active schedule to disable for {target_user.username}!')
+                        messages.info(request, f'No active schedule to delete for {target_user.username}!')
         
         return redirect('home_user', username=username, user_id=user_id)
 
@@ -408,7 +413,7 @@ class ScheduleManagementView(TeacherOrAdminRequiredMixin, View):
                     WeeklySchedule.objects.filter(created_by=request.user, is_active=True).update(is_active=False)
                 
                 # Create empty schedule for each day
-                for day in range(1, 6):  # Monday to Friday
+                for day in range(1, 8):  # Monday to Sunday
                     WeeklySchedule.objects.create(
                         day_of_week=day,
                         subject=None,  # Empty subject
@@ -428,9 +433,9 @@ class ScheduleManagementView(TeacherOrAdminRequiredMixin, View):
                     disabled_count = WeeklySchedule.objects.filter(created_by=request.user, is_active=True).update(is_active=False)
                 
                 if disabled_count > 0:
-                    messages.success(request, f'Disabled {disabled_count} schedule entries!')
+                    messages.success(request, f'Deleted {disabled_count} schedule entries!')
                 else:
-                    messages.info(request, 'No active schedule to disable!')
+                    messages.info(request, 'No active schedule to delete!')
         
         return redirect('home')
 
@@ -2065,6 +2070,169 @@ class UsersView(LoginRequiredMixin, View):
             'users': users_with_data,
         }
         return render(request, 'users.html', context)
+
+
+# API Views for Auto-Save Today Page Data
+@method_decorator(csrf_exempt, name='dispatch')
+class TodayAutoSaveAPIView(View):
+    def post(self, request):
+        """Auto-save today page data without page refresh"""
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+        
+        try:
+            data = json.loads(request.body)
+            
+            # Get parameters
+            subject_id = data.get('subject_id')
+            date_str = data.get('date')
+            username = data.get('username')
+            user_id = data.get('user_id')
+            
+            # Parse date
+            if date_str:
+                today_date = datetime.strptime(date_str, '%d-%m-%y').date()
+            else:
+                from datetime import date as date_module
+                today_date = date_module.today()
+            
+            # Determine target user
+            if username and user_id:
+                try:
+                    target_user = User.objects.get(username__iexact=username, id=user_id)
+                    can_edit = (target_user == request.user) or request.user.is_admin()
+                    if not can_edit:
+                        return JsonResponse({'error': 'Permission denied'}, status=403)
+                except User.DoesNotExist:
+                    target_user = request.user
+            else:
+                target_user = request.user
+            
+            if not subject_id:
+                return JsonResponse({'error': 'Subject ID required'}, status=400)
+            
+            # Get form data
+            book_id = data.get('book_id')
+            pages = data.get('pages')
+            notes = data.get('notes')
+            important_notes = data.get('important_notes')
+            
+            # Process homework entries
+            homework_entries = []
+            for i in range(10):
+                homework_book = data.get(f'homework_book_{i}')
+                homework_pages = data.get(f'homework_pages_{i}')
+                if homework_book or homework_pages:
+                    homework_entries.append({
+                        'book_id': homework_book,
+                        'pages': homework_pages
+                    })
+            
+            # Process extra entries
+            extra_entries = []
+            for i in range(5):
+                extra_book = data.get(f'extra_book_{i}')
+                extra_pages = data.get(f'extra_pages_{i}')
+                if extra_book or extra_pages:
+                    extra_entries.append({
+                        'book_id': extra_book,
+                        'pages': extra_pages
+                    })
+            
+            # Save data using existing logic
+            with transaction.atomic():
+                # Get subject
+                try:
+                    subject = Subject.objects.get(id=subject_id, created_by=target_user)
+                except Subject.DoesNotExist:
+                    return JsonResponse({'error': 'Subject not found'}, status=404)
+                
+                # Get book
+                book = None
+                if book_id:
+                    try:
+                        book = Book.objects.get(id=book_id)
+                    except Book.DoesNotExist:
+                        pass
+                
+                # Check if there's any data to save
+                has_data = any([book_id, pages, notes, important_notes, homework_entries, extra_entries])
+                
+                if has_data:
+                    # Get or create main entry
+                    main_entry, created = DailyEntry.objects.get_or_create(
+                        date=today_date,
+                        subject=subject,
+                        defaults={
+                            'book': book,
+                            'pages': pages if pages else None,
+                            'notes': notes if notes else None,
+                            'important_notes': important_notes if important_notes else None,
+                            'created_by': target_user
+                        }
+                    )
+                    
+                    # Update if not created
+                    if not created:
+                        main_entry.book = book
+                        main_entry.pages = pages if pages else None
+                        main_entry.notes = notes if notes else None
+                        main_entry.important_notes = important_notes if important_notes else None
+                        main_entry.save()
+                    
+                    # Clear existing homework entries
+                    main_entry.homework_entries.all().delete()
+                    
+                    # Save homework entries
+                    for hw_entry in homework_entries:
+                        if hw_entry['book_id'] or hw_entry['pages']:
+                            homework_book = None
+                            if hw_entry['book_id']:
+                                try:
+                                    homework_book = Book.objects.get(id=hw_entry['book_id'])
+                                except Book.DoesNotExist:
+                                    pass
+                            
+                            HomeworkEntry.objects.create(
+                                daily_entry=main_entry,
+                                book=homework_book,
+                                pages=hw_entry['pages'] if hw_entry['pages'] else None,
+                                created_by=target_user
+                            )
+                    
+                    # Clear existing extra entries
+                    main_entry.extras.all().delete()
+                    
+                    # Save extra entries
+                    for extra_entry in extra_entries:
+                        if extra_entry['book_id'] or extra_entry['pages']:
+                            extra_book = None
+                            if extra_entry['book_id']:
+                                try:
+                                    extra_book = Book.objects.get(id=extra_entry['book_id'])
+                                except Book.DoesNotExist:
+                                    pass
+                            
+                            DailyExtra.objects.create(
+                                daily_entry=main_entry,
+                                book=extra_book,
+                                pages=extra_entry['pages'] if extra_entry['pages'] else None,
+                                created_by=target_user
+                            )
+                else:
+                    # No data - delete entry if it exists
+                    DailyEntry.objects.filter(
+                        date=today_date,
+                        subject=subject,
+                        created_by=target_user
+                    ).delete()
+            
+            return JsonResponse({'success': True, 'message': 'Data saved successfully'})
+            
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
 
 
 # API Views for Subjects and Books Management

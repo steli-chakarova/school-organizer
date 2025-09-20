@@ -479,6 +479,111 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // Initialize auto-save functionality
+    initializeMobileAutoSave();
 });
+
+// Mobile Auto-save functionality
+let mobileAutoSaveTimeouts = {};
+
+function initializeMobileAutoSave() {
+    // Add auto-save to all form inputs
+    const formInputs = document.querySelectorAll('input, select, textarea');
+    formInputs.forEach(input => {
+        // Skip submit buttons and hidden inputs
+        if (input.type === 'submit' || input.type === 'hidden') return;
+        
+        // Add event listeners for different input types
+        if (input.type === 'text' || input.type === 'textarea') {
+            input.addEventListener('input', () => scheduleMobileAutoSave(input));
+        } else {
+            input.addEventListener('change', () => scheduleMobileAutoSave(input));
+        }
+    });
+}
+
+function scheduleMobileAutoSave(input) {
+    // Find the subject ID from the form
+    const form = input.closest('form');
+    if (!form) return;
+    
+    const subjectIdInput = form.querySelector('input[name="subject_id"]');
+    if (!subjectIdInput) return;
+    
+    const subjectId = subjectIdInput.value;
+    
+    // Clear existing timeout for this subject
+    if (mobileAutoSaveTimeouts[subjectId]) {
+        clearTimeout(mobileAutoSaveTimeouts[subjectId]);
+    }
+    
+    // Auto-save without indicator
+    
+    // Schedule auto-save after 2 seconds of inactivity
+    mobileAutoSaveTimeouts[subjectId] = setTimeout(() => {
+        performMobileAutoSave(subjectId);
+    }, 2000);
+}
+
+function performMobileAutoSave(subjectId) {
+    const form = document.querySelector(`form input[name="subject_id"][value="${subjectId}"]`)?.closest('form');
+    if (!form) return;
+    
+    // Collect form data
+    const formData = new FormData(form);
+    const data = {
+        subject_id: subjectId,
+        date: '{{ today_date|date:"d-m-y" }}',
+        {% if username and user_id %}
+        username: '{{ username }}',
+        user_id: {{ user_id }},
+        {% endif %}
+        book_id: formData.get(`book_${subjectId}`) || formData.get('book_new'),
+        pages: formData.get(`pages_${subjectId}`) || formData.get('pages_new'),
+        notes: formData.get(`notes_${subjectId}`) || formData.get('notes_new'),
+        important_notes: formData.get(`important_notes_${subjectId}`) || formData.get('important_notes_new')
+    };
+    
+    // Collect homework entries
+    for (let i = 0; i < 10; i++) {
+        const homeworkBook = formData.get(`homework_book_${subjectId}_${i}`) || formData.get(`homework_book_new_${i}`);
+        const homeworkPages = formData.get(`homework_pages_${subjectId}_${i}`) || formData.get(`homework_pages_new_${i}`);
+        if (homeworkBook || homeworkPages) {
+            data[`homework_book_${i}`] = homeworkBook;
+            data[`homework_pages_${i}`] = homeworkPages;
+        }
+    }
+    
+    // Collect extra entries
+    for (let i = 0; i < 5; i++) {
+        const extraBook = formData.get(`extra_book_${subjectId}_${i}`) || formData.get(`extra_book_new_${i}`);
+        const extraPages = formData.get(`extra_pages_${subjectId}_${i}`) || formData.get(`extra_pages_new_${i}`);
+        if (extraBook || extraPages) {
+            data[`extra_book_${i}`] = extraBook;
+            data[`extra_pages_${i}`] = extraPages;
+        }
+    }
+    
+    // Send auto-save request
+    fetch('/api/today-autosave/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (!result.success) {
+            console.error('Auto-save error:', result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Auto-save error:', error);
+    });
+}
+
 </script>
 {% endblock %}

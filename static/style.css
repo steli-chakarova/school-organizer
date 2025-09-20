@@ -157,14 +157,17 @@ nav ul {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 15px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.schedule-form-header:hover {
+    background-color: #f8f9fa;
 }
 
 .toggle-btn {
-    background: #f8f9fa;
-    border: 2px solid #dee2e6;
-    border-radius: 4px;
-    padding: 8px 16px;
-    cursor: pointer;
     font-size: 14px;
     font-weight: 500;
     color: #495057;
@@ -423,6 +426,19 @@ button:hover {
     margin-bottom: 2rem;
 }
 
+.schedule-grid .day-column:nth-child(n+6) {
+    grid-column: span 1;
+}
+
+/* Weekend layout - Saturday and Sunday on second row, aligned left under Monday and Tuesday */
+.schedule-grid .day-column:nth-child(6) {
+    grid-column: 1 / 2;
+}
+
+.schedule-grid .day-column:nth-child(7) {
+    grid-column: 2 / 3;
+}
+
 .day-column {
     background-color: #f8f8f8;
     padding: 1rem;
@@ -540,6 +556,7 @@ button:hover {
     align-items: center;
     border-bottom: 1px solid var(--border-color);
     transition: var(--transition);
+    cursor: pointer;
 }
 
 .collapsible-card .card-header:hover {
@@ -1493,10 +1510,6 @@ button:hover {
     overflow-wrap: break-word;
 }
 
-.subject-name:hover {
-    color: #007bff;
-    text-decoration: underline;
-}
 
 .books-cell {
     max-width: 300px;

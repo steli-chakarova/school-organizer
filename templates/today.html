@@ -27,12 +27,12 @@
         {% for subject_schedule in today_subjects %}
             {% if subject_schedule.subject %}
             <div class="subject-card collapsible-card" data-subject-id="{{ subject_schedule.subject.id }}">
-                <div class="card-header">
+                <div class="card-header" onclick="toggleCard({{ subject_schedule.subject.id }})">
                     <h3 class="subject-name">{{ subject_schedule.subject.name }}</h3>
-                <div class="header-controls">
-                    <span class="toggle-icon" onclick="toggleCard({{ subject_schedule.subject.id }})">▼</span>
+                    <div class="header-controls">
+                        <span class="toggle-icon">▼</span>
+                    </div>
                 </div>
-            </div>
             <div class="card-content" id="content-{{ subject_schedule.subject.id }}" style="display: none;">
             {% if can_edit %}
             <form method="POST" action="{% if request.resolver_match.url_name == 'today_user_date' %}{% url 'today_user_date' username=request.resolver_match.kwargs.username user_id=request.resolver_match.kwargs.user_id date=request.resolver_match.kwargs.date %}{% elif request.resolver_match.url_name == 'today_user' %}{% url 'today_user' username=request.resolver_match.kwargs.username user_id=request.resolver_match.kwargs.user_id %}{% elif request.resolver_match.url_name == 'today_date' %}{% url 'today_date' date=request.resolver_match.kwargs.date %}{% else %}{% url 'today' %}{% endif %}" class="subject-form">
@@ -545,7 +545,112 @@ document.addEventListener('DOMContentLoaded', function() {
             icon.textContent = '▼';
         }
     });
+    
+    // Initialize auto-save functionality
+    initializeAutoSave();
 });
+
+// Auto-save functionality
+let autoSaveTimeouts = {};
+
+function initializeAutoSave() {
+    // Add auto-save to all form inputs
+    const formInputs = document.querySelectorAll('input, select, textarea');
+    formInputs.forEach(input => {
+        // Skip submit buttons and hidden inputs
+        if (input.type === 'submit' || input.type === 'hidden') return;
+        
+        // Add event listeners for different input types
+        if (input.type === 'text' || input.type === 'textarea') {
+            input.addEventListener('input', () => scheduleAutoSave(input));
+        } else {
+            input.addEventListener('change', () => scheduleAutoSave(input));
+        }
+    });
+}
+
+function scheduleAutoSave(input) {
+    // Find the subject ID from the form
+    const form = input.closest('form');
+    if (!form) return;
+    
+    const subjectIdInput = form.querySelector('input[name="subject_id"]');
+    if (!subjectIdInput) return;
+    
+    const subjectId = subjectIdInput.value;
+    
+    // Clear existing timeout for this subject
+    if (autoSaveTimeouts[subjectId]) {
+        clearTimeout(autoSaveTimeouts[subjectId]);
+    }
+    
+    // Auto-save without indicator
+    
+    // Schedule auto-save after 2 seconds of inactivity
+    autoSaveTimeouts[subjectId] = setTimeout(() => {
+        performAutoSave(subjectId);
+    }, 2000);
+}
+
+function performAutoSave(subjectId) {
+    const form = document.querySelector(`form input[name="subject_id"][value="${subjectId}"]`)?.closest('form');
+    if (!form) return;
+    
+    // Collect form data
+    const formData = new FormData(form);
+    const data = {
+        subject_id: subjectId,
+        date: '{{ today_date|date:"d-m-y" }}',
+        {% if username and user_id %}
+        username: '{{ username }}',
+        user_id: {{ user_id }},
+        {% endif %}
+        book_id: formData.get(`book_${subjectId}`) || formData.get('book_new'),
+        pages: formData.get(`pages_${subjectId}`) || formData.get('pages_new'),
+        notes: formData.get(`notes_${subjectId}`) || formData.get('notes_new'),
+        important_notes: formData.get(`important_notes_${subjectId}`) || formData.get('important_notes_new')
+    };
+    
+    // Collect homework entries
+    for (let i = 0; i < 10; i++) {
+        const homeworkBook = formData.get(`homework_book_${subjectId}_${i}`) || formData.get(`homework_book_new_${i}`);
+        const homeworkPages = formData.get(`homework_pages_${subjectId}_${i}`) || formData.get(`homework_pages_new_${i}`);
+        if (homeworkBook || homeworkPages) {
+            data[`homework_book_${i}`] = homeworkBook;
+            data[`homework_pages_${i}`] = homeworkPages;
+        }
+    }
+    
+    // Collect extra entries
+    for (let i = 0; i < 5; i++) {
+        const extraBook = formData.get(`extra_book_${subjectId}_${i}`) || formData.get(`extra_book_new_${i}`);
+        const extraPages = formData.get(`extra_pages_${subjectId}_${i}`) || formData.get(`extra_pages_new_${i}`);
+        if (extraBook || extraPages) {
+            data[`extra_book_${i}`] = extraBook;
+            data[`extra_pages_${i}`] = extraPages;
+        }
+    }
+    
+    // Send auto-save request
+    fetch('/api/today-autosave/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (!result.success) {
+            console.error('Auto-save error:', result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Auto-save error:', error);
+    });
+}
+
 
 </script>
 {% endblock %}

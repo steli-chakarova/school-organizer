@@ -89,32 +89,14 @@
     </div>
     {% endif %}
     
-    <!-- Schedule Management (only show if there's an active schedule) -->
-    {% if has_active_schedule %}
-    <div class="schedule-management">
-        <h3>Schedule Management</h3>
-        <div class="schedule-actions">
-            <form method="POST" action="{% url 'schedule_manage' %}" style="display: inline;">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="create_new">
-                <button type="submit" class="btn btn-primary">Create New Schedule</button>
-            </form>
-            <form method="POST" action="{% url 'schedule_manage' %}" style="display: inline; margin-left: 10px;">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="disable_current">
-                <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to disable the current schedule?')">Disable Current Schedule</button>
-            </form>
-        </div>
-    </div>
-    {% endif %}
     
     <!-- Weekly Schedule Form -->
     <div class="schedule-form-section">
-        <div class="schedule-form-header">
+        <div class="schedule-form-header" onclick="toggleScheduleForm()">
             <h3>{% if has_active_schedule %}Edit Weekly Schedule{% else %}Create Weekly Schedule{% endif %}</h3>
-            <button type="button" class="toggle-btn" onclick="toggleScheduleForm()">
+            <div class="toggle-btn">
                 <span id="toggle-text">Show</span> <span id="toggle-icon">▼</span>
-            </button>
+            </div>
         </div>
         <div class="schedule-form-content" id="schedule-form-content" style="display: none;">
             <form id="schedule-update-form" method="POST" action="{% if is_admin_view %}{% url 'home_user' target_user.username target_user.id %}{% else %}{% url 'home' %}{% endif %}">
@@ -260,6 +242,62 @@
                     </div>
                     <button type="button" class="add-subject-btn" onclick="addSubject(5)">+ Add Subject</button>
                 </div>
+                
+                <div class="day-column">
+                    <h4>Saturday</h4>
+                    <div class="subjects-list" id="subjects_6">
+                        {% for schedule_entry in schedule_by_day.6 %}
+                        <div class="subject-item">
+                            <select name="subjects_6" class="subject-select">
+                                <option value="">Select Subject</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}" {% if schedule_entry.subject.id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="remove-subject-btn" onclick="removeSubject(this)">×</button>
+                        </div>
+                        {% empty %}
+                        <div class="subject-item">
+                            <select name="subjects_6" class="subject-select">
+                                <option value="">Select Subject</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="remove-subject-btn" onclick="removeSubject(this)">×</button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button type="button" class="add-subject-btn" onclick="addSubject(6)">+ Add Subject</button>
+                </div>
+                
+                <div class="day-column">
+                    <h4>Sunday</h4>
+                    <div class="subjects-list" id="subjects_7">
+                        {% for schedule_entry in schedule_by_day.7 %}
+                        <div class="subject-item">
+                            <select name="subjects_7" class="subject-select">
+                                <option value="">Select Subject</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}" {% if schedule_entry.subject.id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="remove-subject-btn" onclick="removeSubject(this)">×</button>
+                        </div>
+                        {% empty %}
+                        <div class="subject-item">
+                            <select name="subjects_7" class="subject-select">
+                                <option value="">Select Subject</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="remove-subject-btn" onclick="removeSubject(this)">×</button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button type="button" class="add-subject-btn" onclick="addSubject(7)">+ Add Subject</button>
+                </div>
                 </div>
             </form>
             <div class="schedule-form-footer">
@@ -267,71 +305,113 @@
             </div>
         </div>
         </div>
+        
+        <!-- Weekly Schedule (Read-only) - only show if there's an active schedule -->
+        {% if has_active_schedule %}
+        <div class="current-schedule-section">
+            <h3>Current Weekly Schedule</h3>
+            <div class="schedule-grid">
+                {% if schedule_by_day.1 %}
+                <div class="day-column">
+                    <h4>Monday</h4>
+                    <div class="subjects-list">
+                        {% for schedule_entry in schedule_by_day.1 %}
+                        <div class="subject-item">{{ schedule_entry.subject.name }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if schedule_by_day.2 %}
+                <div class="day-column">
+                    <h4>Tuesday</h4>
+                    <div class="subjects-list">
+                        {% for schedule_entry in schedule_by_day.2 %}
+                        <div class="subject-item">{{ schedule_entry.subject.name }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if schedule_by_day.3 %}
+                <div class="day-column">
+                    <h4>Wednesday</h4>
+                    <div class="subjects-list">
+                        {% for schedule_entry in schedule_by_day.3 %}
+                        <div class="subject-item">{{ schedule_entry.subject.name }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if schedule_by_day.4 %}
+                <div class="day-column">
+                    <h4>Thursday</h4>
+                    <div class="subjects-list">
+                        {% for schedule_entry in schedule_by_day.4 %}
+                        <div class="subject-item">{{ schedule_entry.subject.name }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if schedule_by_day.5 %}
+                <div class="day-column">
+                    <h4>Friday</h4>
+                    <div class="subjects-list">
+                        {% for schedule_entry in schedule_by_day.5 %}
+                        <div class="subject-item">{{ schedule_entry.subject.name }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if schedule_by_day.6 %}
+                <div class="day-column">
+                    <h4>Saturday</h4>
+                    <div class="subjects-list">
+                        {% for schedule_entry in schedule_by_day.6 %}
+                        <div class="subject-item">{{ schedule_entry.subject.name }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if schedule_by_day.7 %}
+                <div class="day-column">
+                    <h4>Sunday</h4>
+                    <div class="subjects-list">
+                        {% for schedule_entry in schedule_by_day.7 %}
+                        <div class="subject-item">{{ schedule_entry.subject.name }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Schedule Management (only show if there's an active schedule) -->
+        {% if has_active_schedule %}
+        <div class="schedule-management">
+            <h3>Schedule Management</h3>
+            <div class="schedule-actions">
+                <form method="POST" action="{% url 'schedule_manage' %}" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="create_new">
+                    <button type="submit" class="btn btn-primary">Create New Schedule</button>
+                </form>
+                <form method="POST" action="{% url 'schedule_manage' %}" style="display: inline; margin-left: 10px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="disable_current">
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete the current schedule?')">Delete Current Schedule</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+        </div>
         </div>
     </div>
-    
-    <!-- Weekly Schedule (Read-only) - only show if there's an active schedule -->
-    {% if has_active_schedule %}
-    <div class="current-schedule-section">
-        <h3>Current Weekly Schedule</h3>
-        <div class="schedule-grid">
-            <div class="day-column">
-                <h4>Monday</h4>
-                <div class="subjects-list">
-                    {% for schedule_entry in schedule_by_day.1 %}
-                    <div class="subject-item">{{ schedule_entry.subject.name }}</div>
-                    {% empty %}
-                    <div class="subject-item empty">No subjects</div>
-                    {% endfor %}
-                </div>
-            </div>
-            
-            <div class="day-column">
-                <h4>Tuesday</h4>
-                <div class="subjects-list">
-                    {% for schedule_entry in schedule_by_day.2 %}
-                    <div class="subject-item">{{ schedule_entry.subject.name }}</div>
-                    {% empty %}
-                    <div class="subject-item empty">No subjects</div>
-                    {% endfor %}
-                </div>
-            </div>
-            
-            <div class="day-column">
-                <h4>Wednesday</h4>
-                <div class="subjects-list">
-                    {% for schedule_entry in schedule_by_day.3 %}
-                    <div class="subject-item">{{ schedule_entry.subject.name }}</div>
-                    {% empty %}
-                    <div class="subject-item empty">No subjects</div>
-                    {% endfor %}
-                </div>
-            </div>
-            
-            <div class="day-column">
-                <h4>Thursday</h4>
-                <div class="subjects-list">
-                    {% for schedule_entry in schedule_by_day.4 %}
-                    <div class="subject-item">{{ schedule_entry.subject.name }}</div>
-                    {% empty %}
-                    <div class="subject-item empty">No subjects</div>
-                    {% endfor %}
-                </div>
-            </div>
-            
-            <div class="day-column">
-                <h4>Friday</h4>
-                <div class="subjects-list">
-                    {% for schedule_entry in schedule_by_day.5 %}
-                    <div class="subject-item">{{ schedule_entry.subject.name }}</div>
-                    {% empty %}
-                    <div class="subject-item empty">No subjects</div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
 </div>
 
 <script>

@@ -28,4 +28,5 @@ urlpatterns = [
     
     # API endpoints
     path('api/subjects-books/', views.SubjectsBooksAPIView.as_view(), name='subjects_books_api'),
+    path('api/today-autosave/', views.TodayAutoSaveAPIView.as_view(), name='today_autosave_api'),
 ]
