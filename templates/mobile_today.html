@@ -351,7 +351,7 @@ function addMobileExtra(subjectId) {
     const count = container.children.length;
     const newEntry = mobileExtraTemplate(subjectId, count);
     container.insertAdjacentHTML('beforeend', newEntry);
-    updateMobileBookOptions(subjectId);
+    updateMobileBookOptionsForContainer(subjectId, 'mobile-extra');
 }
 
 function addMobileHomework(subjectId) {
@@ -361,7 +361,7 @@ function addMobileHomework(subjectId) {
     const count = container.children.length;
     const newEntry = mobileHomeworkTemplate(subjectId, count);
     container.insertAdjacentHTML('beforeend', newEntry);
-    updateMobileBookOptions(subjectId);
+    updateMobileBookOptionsForContainer(subjectId, 'mobile-homework');
 }
 
 function removeMobileExtra(button) {
@@ -398,6 +398,30 @@ function updateMobileBookOptions(subjectId) {
     if (homeworkContainer) {
         const homeworkSelects = homeworkContainer.querySelectorAll('select[name^="homework_book_"]');
         homeworkSelects.forEach(select => {
+            const currentValue = select.value;
+            select.innerHTML = mainSelect.innerHTML;
+            select.value = currentValue;
+        });
+    }
+}
+
+function updateMobileBookOptionsForContainer(subjectId, containerType) {
+    let mainSelect;
+    if (subjectId === 'new') {
+        mainSelect = document.getElementById('mobile_book_select_new');
+    } else {
+        const form = document.querySelector('input[name="subject_id"][value="' + subjectId + '"]').closest('form');
+        mainSelect = form.querySelector('select[name^="book_"]');
+    }
+    
+    if (!mainSelect) return;
+    
+    const container = document.getElementById(containerType + '-' + subjectId);
+    if (container) {
+        // Handle both mobile-extra and mobile-homework container types
+        const prefix = containerType === 'mobile-extra' ? 'extra_book_' : 'homework_book_';
+        const selects = container.querySelectorAll(`select[name^="${prefix}"]`);
+        selects.forEach(select => {
             const currentValue = select.value;
             select.innerHTML = mainSelect.innerHTML;
             select.value = currentValue;
