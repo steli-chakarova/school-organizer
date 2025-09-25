@@ -364,6 +364,9 @@ function addMoreEntry(subjectId) {
     const newEntry = extraEntryTemplate(subjectId, count);
     container.insertAdjacentHTML('beforeend', newEntry);
     updateBookOptionsForContainer(subjectId, 'extra');
+    
+    // Initialize auto-save for the new entry
+    initializeAutoSaveForNewEntry(container.lastElementChild);
 }
 
 function addHomeworkEntry(subjectId) {
@@ -374,6 +377,9 @@ function addHomeworkEntry(subjectId) {
     const newEntry = homeworkEntryTemplate(subjectId, count);
     container.insertAdjacentHTML('beforeend', newEntry);
     updateBookOptionsForContainer(subjectId, 'homework');
+    
+    // Initialize auto-save for the new entry
+    initializeAutoSaveForNewEntry(container.lastElementChild);
 }
 
 // Remove extra entry
@@ -580,6 +586,22 @@ let autoSaveTimeouts = {};
 function initializeAutoSave() {
     // Add auto-save to all form inputs
     const formInputs = document.querySelectorAll('input, select, textarea');
+    formInputs.forEach(input => {
+        // Skip submit buttons and hidden inputs
+        if (input.type === 'submit' || input.type === 'hidden') return;
+        
+        // Add event listeners for different input types
+        if (input.type === 'text' || input.type === 'textarea') {
+            input.addEventListener('input', () => scheduleAutoSave(input));
+        } else {
+            input.addEventListener('change', () => scheduleAutoSave(input));
+        }
+    });
+}
+
+function initializeAutoSaveForNewEntry(entryElement) {
+    // Add auto-save to new entry inputs
+    const formInputs = entryElement.querySelectorAll('input, select, textarea');
     formInputs.forEach(input => {
         // Skip submit buttons and hidden inputs
         if (input.type === 'submit' || input.type === 'hidden') return;

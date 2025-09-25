@@ -352,6 +352,9 @@ function addMobileExtra(subjectId) {
     const newEntry = mobileExtraTemplate(subjectId, count);
     container.insertAdjacentHTML('beforeend', newEntry);
     updateMobileBookOptionsForContainer(subjectId, 'mobile-extra');
+    
+    // Initialize auto-save for the new entry
+    initializeMobileAutoSaveForNewEntry(container.lastElementChild);
 }
 
 function addMobileHomework(subjectId) {
@@ -362,6 +365,9 @@ function addMobileHomework(subjectId) {
     const newEntry = mobileHomeworkTemplate(subjectId, count);
     container.insertAdjacentHTML('beforeend', newEntry);
     updateMobileBookOptionsForContainer(subjectId, 'mobile-homework');
+    
+    // Initialize auto-save for the new entry
+    initializeMobileAutoSaveForNewEntry(container.lastElementChild);
 }
 
 function removeMobileExtra(button) {
@@ -514,6 +520,22 @@ let mobileAutoSaveTimeouts = {};
 function initializeMobileAutoSave() {
     // Add auto-save to all form inputs
     const formInputs = document.querySelectorAll('input, select, textarea');
+    formInputs.forEach(input => {
+        // Skip submit buttons and hidden inputs
+        if (input.type === 'submit' || input.type === 'hidden') return;
+        
+        // Add event listeners for different input types
+        if (input.type === 'text' || input.type === 'textarea') {
+            input.addEventListener('input', () => scheduleMobileAutoSave(input));
+        } else {
+            input.addEventListener('change', () => scheduleMobileAutoSave(input));
+        }
+    });
+}
+
+function initializeMobileAutoSaveForNewEntry(entryElement) {
+    // Add auto-save to new entry inputs
+    const formInputs = entryElement.querySelectorAll('input, select, textarea');
     formInputs.forEach(input => {
         // Skip submit buttons and hidden inputs
         if (input.type === 'submit' || input.type === 'hidden') return;
