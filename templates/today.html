@@ -611,23 +611,27 @@ function performAutoSave(subjectId) {
         important_notes: formData.get(`important_notes_${subjectId}`) || formData.get('important_notes_new')
     };
     
-    // Collect homework entries
-    for (let i = 0; i < 10; i++) {
-        const homeworkBook = formData.get(`homework_book_${subjectId}_${i}`) || formData.get(`homework_book_new_${i}`);
-        const homeworkPages = formData.get(`homework_pages_${subjectId}_${i}`) || formData.get(`homework_pages_new_${i}`);
-        if (homeworkBook || homeworkPages) {
-            data[`homework_book_${i}`] = homeworkBook;
-            data[`homework_pages_${i}`] = homeworkPages;
+    // Collect homework entries - find all homework fields dynamically
+    let homeworkIndex = 0;
+    for (const [key, value] of formData.entries()) {
+        if (key.startsWith(`homework_book_${subjectId}_`) && value) {
+            const index = key.split('_').pop();
+            const homeworkPages = formData.get(`homework_pages_${subjectId}_${index}`);
+            data[`homework_book_${homeworkIndex}`] = value;
+            data[`homework_pages_${homeworkIndex}`] = homeworkPages || '';
+            homeworkIndex++;
         }
     }
     
-    // Collect extra entries
-    for (let i = 0; i < 5; i++) {
-        const extraBook = formData.get(`extra_book_${subjectId}_${i}`) || formData.get(`extra_book_new_${i}`);
-        const extraPages = formData.get(`extra_pages_${subjectId}_${i}`) || formData.get(`extra_pages_new_${i}`);
-        if (extraBook || extraPages) {
-            data[`extra_book_${i}`] = extraBook;
-            data[`extra_pages_${i}`] = extraPages;
+    // Collect extra entries - find all extra fields dynamically
+    let extraIndex = 0;
+    for (const [key, value] of formData.entries()) {
+        if (key.startsWith(`extra_book_${subjectId}_`) && value) {
+            const index = key.split('_').pop();
+            const extraPages = formData.get(`extra_pages_${subjectId}_${index}`);
+            data[`extra_book_${extraIndex}`] = value;
+            data[`extra_pages_${extraIndex}`] = extraPages || '';
+            extraIndex++;
         }
     }
     

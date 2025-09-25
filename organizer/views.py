@@ -2156,7 +2156,9 @@ class TodayAutoSaveAPIView(View):
                         pass
                 
                 # Check if there's any data to save
-                has_data = any([book_id, pages, notes, important_notes, homework_entries, extra_entries])
+                has_homework_data = any(entry.get('book_id') or entry.get('pages') for entry in homework_entries)
+                has_extra_data = any(entry.get('book_id') or entry.get('pages') for entry in extra_entries)
+                has_data = any([book_id, pages, notes, important_notes, has_homework_data, has_extra_data])
                 
                 if has_data:
                     # Get or create main entry

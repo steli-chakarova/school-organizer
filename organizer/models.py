@@ -107,13 +107,13 @@ class DailyEntry(models.Model):
 
 class DailyExtra(models.Model):
     daily_entry = models.ForeignKey(DailyEntry, on_delete=models.CASCADE, related_name='extras')
-    book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name='daily_extras')
+    book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name='daily_extras', null=True, blank=True)
     pages = models.CharField(max_length=100, blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     
     def __str__(self):
-        return f"{self.daily_entry} - Extra: {self.book.title}"
+        return f"{self.daily_entry} - Extra: {self.book.title if self.book else 'No book'}"
     
     class Meta:
         ordering = ['id']
@@ -121,12 +121,12 @@ class DailyExtra(models.Model):
 
 class HomeworkEntry(models.Model):
     daily_entry = models.ForeignKey(DailyEntry, on_delete=models.CASCADE, related_name='homework_entries')
-    book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name='homework_entries')
+    book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name='homework_entries', null=True, blank=True)
     pages = models.CharField(max_length=100, blank=True, null=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     
     def __str__(self):
-        return f"{self.daily_entry} - Homework: {self.book.title}"
+        return f"{self.daily_entry} - Homework: {self.book.title if self.book else 'No book'}"
     
     class Meta:
         ordering = ['id']
