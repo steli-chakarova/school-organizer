@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Export</title>
+  <style>
+    /* Page margins for better space usage */
+    @page {
+      margin: 10mm 5mm 10mm 5mm;  /* further reduced margins: top right bottom left */
+    }
+
+    /* Content width = table width; adjust if needed */
+    .doc {
+      --content-width: 700px;      /* increased width for better space usage */
+      width: var(--content-width);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      font-size: 12px; line-height: 1.4; color: #111;
+      margin: 0 auto;              /* center the content */
+    }
+
+    /* Two-column layout for subject content */
+    .subject-content {
+      display: flex;
+      margin: 10px 0;
+      position: relative;
+    }
+
+    .left-column {
+      flex: 1;
+      width: 50%;
+      padding-right: 15px;
+      box-sizing: border-box;
+    }
+
+    .right-column {
+      flex: 1;
+      width: 50%;
+      padding-left: 15px;
+      box-sizing: border-box;
+    }
+
+    /* Vertical divider line between columns */
+    .subject-content::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background-color: #d7d7d7;
+      transform: translateX(-50%);
+    }
+
+    .section {
+      margin-bottom: 15px;
+      break-inside: avoid;
+    }
+
+    /* Reduce spacing between Ресурси and Записки */
+    .left-column .section:first-of-type {
+      margin-bottom: 8px;
+    }
+
+    .section-title {
+      font-weight: 700;
+      font-size: 14px;
+      margin-bottom: 5px;
+      color: #333;
+    }
+
+    /* Subject title styling with underline */
+    h2 {
+      border-bottom: 1px solid #d7d7d7;
+      padding-bottom: 5px;
+      margin-bottom: 12px;
+    }
+
+    /* Tables */
+    .doc table { border-collapse: collapse; width: 100%; }
+    .doc th, .doc td { border: 0.5px solid #ddd; padding: 6px; vertical-align: top; }
+    .doc thead th { background: #eee; font-weight: 700; }
+
+    /* Lists (bullets & numbers) — keep tight to text */
+    .doc ul { list-style: disc; padding-left: 16px; margin: .3rem 0; }
+    .doc ol { list-style: decimal; padding-left: 18px; margin: .3rem 0; }
+    .doc li { margin: .15rem 0; break-inside: avoid; }
+    .doc li::marker { font-size: .95em; }
+
+    /* Tiptap task list → [_] / [x] */
+    .doc ul[data-type="taskList"] { list-style: none; padding-left: 0; margin: .3rem 0; }
+    .doc ul[data-type="taskList"] li { display: flex; gap: .45rem; align-items: flex-start; }
+    .doc ul[data-type="taskList"] input[type="checkbox"] { display: none; }
+    .doc ul[data-type="taskList"] li[data-checked="true"]::before  { content: "[x]"; }
+    .doc ul[data-type="taskList"] li[data-checked="false"]::before { content: "[_]"; }
+    /* Fallback if label wraps */
+    .doc ul[data-type="taskList"] li > label { display: contents; }
+    .doc ul[data-type="taskList"] li[data-checked="true"]  > label::before { content: "[x]"; }
+    .doc ul[data-type="taskList"] li[data-checked="false"] > label::before { content: "[_]"; }
+
+    /* Blockquote (aligned to table width) */
+    .doc blockquote {
+      width: 100%; box-sizing: border-box;
+      background: #f8f9fa; border: none;
+      padding: 8px 10px; margin: 8px 0;
+      break-inside: avoid;
+    }
+
+    /* Inline styles */
+    .doc i, .doc em { font-style: italic !important; }
+    .doc b, .doc strong { font-weight: 700 !important; }
+    .doc u { text-decoration: underline !important; }
+    
+    /* Ensure italic works inside blockquotes */
+    .doc blockquote i, .doc blockquote em { font-style: italic !important; }
+    .doc blockquote b, .doc blockquote strong { font-weight: 700 !important; }
+    .doc blockquote u { text-decoration: underline !important; }
+
+    /* Misc */
+    .doc hr { border: none; border-top: 1px solid #d7d7d7; margin: 16px 0; }
+    table, blockquote { break-inside: avoid; }
+  </style>
+</head>
+<body>
+  <!-- We render the same tiptap markup you put in today.html/mobile_today.html -->
+  <div class="doc tiptap">
+    {{ doc_html|safe }}
+  </div>
+</body>
+</html>

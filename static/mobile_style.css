@@ -1,4 +1,388 @@
 /* Mobile-first CSS for School Organizer */
+
+/* Mobile Rich Text Editor Styles */
+.mobile-tiptap-wrapper {
+    border: 1px solid var(--mobile-border);
+    border-radius: 8px;
+    background: var(--mobile-white);
+    margin: 10px 0;
+    overflow: hidden;
+}
+
+.mobile-tiptap-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 8px;
+    background: #f8f9fa;
+    border-bottom: 1px solid var(--mobile-border);
+    overflow-x: auto;
+}
+
+.mobile-tiptap-toolbar button {
+    padding: 6px 8px;
+    border: 1px solid var(--mobile-border);
+    background: var(--mobile-white);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    min-width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--mobile-transition);
+}
+
+.mobile-tiptap-toolbar button:hover {
+    background: #e9ecef;
+}
+
+.mobile-tiptap-toolbar button.is-active {
+    background: var(--mobile-accent);
+    color: var(--mobile-primary);
+}
+
+.mobile-tiptap-editor {
+    min-height: 120px;
+    padding: 12px;
+    font-size: 16px;
+    line-height: 1.5;
+    outline: none;
+    overflow-y: auto;
+    max-height: 300px;
+}
+
+.mobile-tiptap-editor p {
+    margin: 0 0 8px 0;
+}
+
+.mobile-tiptap-editor ul, .mobile-tiptap-editor ol {
+    margin: 8px 0;
+    padding-left: 20px;
+}
+
+.mobile-tiptap-editor li {
+    margin: 4px 0;
+}
+
+.mobile-tiptap-editor table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 8px 0;
+}
+
+.mobile-tiptap-editor th, .mobile-tiptap-editor td {
+    border: 1px solid var(--mobile-border);
+    padding: 8px;
+    text-align: left;
+}
+
+.mobile-tiptap-editor td .checklist-item {
+    text-align: left !important;
+}
+
+.mobile-tiptap-editor td .checklist-item input[type="checkbox"] {
+    float: left !important;
+    margin-left: -20px !important;
+    position: relative !important;
+    left: -10px !important;
+    transform: translateX(-5px) !important;
+}
+
+.mobile-tiptap-editor th {
+    background: #f8f9fa;
+    font-weight: bold;
+}
+
+.mobile-tiptap-editor blockquote {
+    border: none;
+    margin: 8px 0;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    font-style: italic;
+}
+
+.mobile-tiptap-editor hr {
+    border: none;
+    border-top: 1px solid var(--mobile-border);
+    margin: 16px 0;
+}
+
+.mobile-tiptap-editor .checklist-item {
+    margin: 4px 0;
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    line-height: 1.5;
+    text-align: left;
+    display: inline-block;
+    width: 100%;
+}
+
+/* Free text checkboxes (not in tables) */
+.mobile-tiptap-editor .checklist-item input[type="checkbox"] {
+    margin-right: 8px;
+    vertical-align: top;
+    margin-top: 2px;
+    float: left;
+    margin-left: -20px !important;
+    position: relative !important;
+    left: -10px !important;
+    transform: translateX(-5px) !important;
+}
+
+
+/* Override tiptap wrapper styles for mobile */
+.tiptap-wrapper {
+    border: 1px solid var(--mobile-border) !important;
+    border-radius: 8px !important;
+    background: var(--mobile-white) !important;
+    margin: 10px 0 !important;
+    overflow: hidden !important;
+}
+
+.tiptap-toolbar {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+    padding: 8px !important;
+    background: #f8f9fa !important;
+    border-bottom: 1px solid var(--mobile-border) !important;
+    overflow-x: auto !important;
+}
+
+.tiptap-toolbar button {
+    padding: 6px 8px !important;
+    border: 1px solid var(--mobile-border) !important;
+    background: var(--mobile-white) !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    font-size: 14px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: var(--mobile-transition) !important;
+}
+
+.tiptap-toolbar button:hover {
+    background: #e9ecef !important;
+}
+
+.tiptap-toolbar button.is-active {
+    background: var(--mobile-accent) !important;
+    color: var(--mobile-primary) !important;
+}
+
+.tiptap-editor {
+    min-height: 120px !important;
+    padding: 12px !important;
+    font-size: 16px !important;
+    line-height: 1.5 !important;
+    outline: none !important;
+    overflow-y: auto !important;
+    max-height: 300px !important;
+}
+
+.tiptap-editor p {
+    margin: 0 0 8px 0 !important;
+}
+
+.tiptap-editor ul, .tiptap-editor ol {
+    margin: 8px 0 !important;
+    padding-left: 20px !important;
+}
+
+.tiptap-editor li {
+    margin: 4px 0 !important;
+}
+
+.tiptap-editor table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    margin: 8px 0 !important;
+}
+
+.tiptap-editor th, .tiptap-editor td {
+    border: 1px solid var(--mobile-border) !important;
+    padding: 8px !important;
+    text-align: left !important;
+}
+
+.tiptap-editor td .checklist-item {
+    text-align: left !important;
+}
+
+.tiptap-editor td .checklist-item input[type="checkbox"] {
+    float: left !important;
+    margin-left: -20px !important;
+    position: relative !important;
+    left: -10px !important;
+    transform: translateX(-5px) !important;
+}
+
+.tiptap-editor th {
+    background: #f8f9fa !important;
+    font-weight: bold !important;
+}
+
+.tiptap-editor blockquote {
+    border: none !important;
+    margin: 8px 0 !important;
+    padding: 8px 12px !important;
+    background: #f8f9fa !important;
+    border-radius: 4px !important;
+    font-style: italic !important;
+}
+
+.tiptap-editor hr {
+    border: none !important;
+    border-top: 1px solid var(--mobile-border) !important;
+    margin: 16px 0 !important;
+}
+
+.tiptap-editor .checklist-item {
+    margin: 4px 0 !important;
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    line-height: 1.5 !important;
+    text-align: left !important;
+    display: inline-block !important;
+    width: 100% !important;
+}
+
+/* Free text checkboxes (not in tables) */
+
+.tiptap-editor .checklist-item input[type="checkbox"] {
+    margin-right: 8px !important;
+    vertical-align: top !important;
+    margin-top: 2px !important;
+    float: left !important;
+}
+
+/* Mobile Rich Text Content Display */
+.mobile-detail-row.rich-text-content {
+    overflow-x: auto;
+}
+
+.mobile-detail-row.rich-text-content table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 8px 0;
+    font-size: 14px;
+}
+
+.mobile-detail-row.rich-text-content th,
+.mobile-detail-row.rich-text-content td {
+    border: 1px solid var(--mobile-border);
+    padding: 8px;
+    text-align: left;
+    word-wrap: break-word;
+}
+
+.mobile-detail-row.rich-text-content td .checklist-item {
+    text-align: left !important;
+}
+
+.mobile-detail-row.rich-text-content td .checklist-item input[type="checkbox"] {
+    float: left !important;
+    margin-left: -20px !important;
+    position: relative !important;
+    left: -10px !important;
+    transform: translateX(-5px) !important;
+}
+
+/* Force table cells to not center content */
+.mobile-tiptap-editor td,
+.tiptap-editor td,
+.mobile-detail-row.rich-text-content td {
+    text-align: left !important;
+}
+
+/* Additional checkbox positioning for table cells */
+.mobile-tiptap-editor td input[type="checkbox"],
+.tiptap-editor td input[type="checkbox"],
+.mobile-detail-row.rich-text-content td input[type="checkbox"] {
+    float: left !important;
+    margin-left: -20px !important;
+    margin-right: 8px !important;
+    vertical-align: top !important;
+    position: relative !important;
+    left: -10px !important;
+    transform: translateX(-5px) !important;
+}
+
+/* Remove any padding from parent containers that might affect checklist positioning */
+.mobile-tiptap-editor .checklist-item *,
+.tiptap-editor .checklist-item *,
+.mobile-detail-row.rich-text-content .checklist-item * {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+}
+
+/* Checkboxes in blockquotes (quotation sections) */
+.mobile-tiptap-editor blockquote .checklist-item input[type="checkbox"],
+.tiptap-editor blockquote .checklist-item input[type="checkbox"],
+.mobile-detail-row.rich-text-content blockquote .checklist-item input[type="checkbox"] {
+    margin-left: -20px !important;
+    position: relative !important;
+    left: -10px !important;
+    transform: translateX(-5px) !important;
+    float: left !important;
+    margin-right: 8px !important;
+    vertical-align: top !important;
+}
+
+.mobile-detail-row.rich-text-content th {
+    background: #f8f9fa;
+    font-weight: bold;
+}
+
+.mobile-detail-row.rich-text-content ul,
+.mobile-detail-row.rich-text-content ol {
+    margin: 8px 0;
+    padding-left: 20px;
+}
+
+.mobile-detail-row.rich-text-content li {
+    margin: 4px 0;
+}
+
+.mobile-detail-row.rich-text-content blockquote {
+    border: none;
+    margin: 8px 0;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    font-style: italic;
+}
+
+.mobile-detail-row.rich-text-content hr {
+    border: none;
+    border-top: 1px solid var(--mobile-border);
+    margin: 16px 0;
+}
+
+.mobile-detail-row.rich-text-content .checklist-item {
+    margin: 4px 0;
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    line-height: 1.5;
+    text-align: left;
+    display: inline-block;
+    width: 100%;
+}
+
+/* Free text checkboxes (not in tables) */
+
+.mobile-detail-row.rich-text-content .checklist-item input[type="checkbox"] {
+    margin-right: 8px;
+    vertical-align: top;
+    margin-top: 2px;
+    float: left;
+}
 :root {
     --mobile-primary: #2c2c2c;
     --mobile-secondary: #555555;

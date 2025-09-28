@@ -1,5 +1,6 @@
 {% extends "mobile_base.html" %}
 {% load organizer_extras %}
+{% load static %}
 
 {% block title %}Today - School Organizer{% endblock %}
 
@@ -111,8 +112,9 @@
                             <div class="mobile-form-group">
                                 <label>Notes:</label>
                                 <textarea name="notes_{{ subject_schedule.subject.id }}" 
+                                          id="mobile_notes_{{ subject_schedule.subject.id }}"
                                           placeholder="Enter notes..." 
-                                          class="mobile-notes-textarea">{% for entry in existing_entries %}{% if entry.subject.id == subject_schedule.subject.id %}{{ entry.notes|default:'' }}{% endif %}{% endfor %}</textarea>
+                                          class="notes-textarea">{% for entry in existing_entries %}{% if entry.subject.id == subject_schedule.subject.id %}{{ entry.notes|default:'' }}{% endif %}{% endfor %}</textarea>
                             </div>
                         </div>
                         
@@ -163,7 +165,8 @@
                             <h4>Important Notes</h4>
                             <div class="mobile-form-group">
                                 <textarea name="important_notes_{{ subject_schedule.subject.id }}" 
-                                          class="mobile-important-textarea" 
+                                          id="mobile_important_notes_{{ subject_schedule.subject.id }}"
+                                          class="important-notes-textarea" 
                                           placeholder="Important notes...">{% for entry in existing_entries %}{% if entry.subject.id == subject_schedule.subject.id %}{{ entry.important_notes|default:"" }}{% endif %}{% endfor %}</textarea>
                             </div>
                         </div>
@@ -237,8 +240,9 @@
                         <div class="mobile-form-group">
                             <label>Notes:</label>
                             <textarea name="notes_new" 
+                                      id="mobile_notes_new"
                                       placeholder="Enter notes..." 
-                                      class="mobile-notes-textarea"></textarea>
+                                      class="notes-textarea"></textarea>
                         </div>
                     </div>
                     
@@ -257,7 +261,8 @@
                         <h4>Important Notes</h4>
                         <div class="mobile-form-group">
                             <textarea name="important_notes_new" 
-                                      class="mobile-important-textarea" 
+                                      id="mobile_important_notes_new"
+                                      class="important-notes-textarea" 
                                       placeholder="Important notes..."></textarea>
                         </div>
                     </div>
@@ -469,6 +474,24 @@ function loadMobileBooksForNewSubject(subjectId) {
 
 // Initialize mobile page
 document.addEventListener('DOMContentLoaded', function() {
+    // Add form submission handler to sync rich text editor content
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            // Sync all rich text editor content to textareas before form submission
+            const textareas = form.querySelectorAll('textarea.notes-textarea, textarea.important-notes-textarea');
+            textareas.forEach(textarea => {
+                const wrapper = textarea.previousElementSibling;
+                if (wrapper && wrapper.classList.contains('tiptap-wrapper')) {
+                    const editor = wrapper.querySelector('.tiptap-editor');
+                    if (editor) {
+                        textarea.value = editor.innerHTML;
+                    }
+                }
+            });
+        });
+    });
+    
     // Restore card states
     const cards = document.querySelectorAll('.mobile-subject-card');
     cards.forEach(card => {
@@ -636,4 +659,8 @@ function performMobileAutoSave(subjectId) {
 }
 
 </script>
+
+{% block extra_js %}
+<script src="{% static 'tiptap-editor.js' %}"></script>
+{% endblock %}
 {% endblock %}

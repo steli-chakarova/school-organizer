@@ -54,14 +54,16 @@
                     <span class="entry-indicator">●</span>
                     {% endif %}
                     <div class="day-actions">
-                        {% if username and user_id %}
-                        <a href="{% url 'today_user_date' username=username user_id=user_id date=day_date|date:'d-m-y' %}" class="edit-link" title="Edit this day">
-                            <span class="desktop-btn-icon edit-icon"></span>
-                        </a>
-                        {% else %}
-                        <a href="{% url 'today_date' date=day_date|date:'d-m-y' %}" class="edit-link" title="Edit this day">
-                            <span class="desktop-btn-icon edit-icon"></span>
-                        </a>
+                        {% if can_edit %}
+                            {% if username and user_id %}
+                            <a href="{% url 'today_user_date' username=username user_id=user_id date=day_date|date:'d-m-y' %}" class="edit-link" title="Edit this day">
+                                <span class="desktop-btn-icon edit-icon"></span>
+                            </a>
+                            {% else %}
+                            <a href="{% url 'today_date' date=day_date|date:'d-m-y' %}" class="edit-link" title="Edit this day">
+                                <span class="desktop-btn-icon edit-icon"></span>
+                            </a>
+                            {% endif %}
                         {% endif %}
                     </div>
                 </div>
@@ -131,8 +133,8 @@
                             <!-- Notes (if any) -->
                             {% if entry.notes %}
                             <h5>Notes:</h5>
-                            <div class="detail-row">
-                                {{ entry.notes|linebreaks }}
+                            <div class="detail-row rich-text-content">
+                                {{ entry.notes|render_rich_text_safe }}
                             </div>
                             {% endif %}
                         </div>
@@ -164,8 +166,8 @@
                         {% if entry.important_notes %}
                         <div class="important-notes-section">
                             <h5>Important Notes:</h5>
-                            <div class="detail-row">
-                                {{ entry.important_notes|linebreaks }}
+                            <div class="detail-row rich-text-content">
+                                {{ entry.important_notes|render_rich_text_safe }}
                             </div>
                         </div>
                         {% endif %}
@@ -198,6 +200,8 @@ function selectDate(dateStr) {
 }
 
 function editDate(dateStr) {
+    // Only allow editing if user has permission
+    {% if can_edit %}
     // Convert YYYY-MM-DD to DD-MM-YY format for the URL
     const date = new Date(dateStr);
     const day = String(date.getDate()).padStart(2, '0');
@@ -210,6 +214,10 @@ function editDate(dateStr) {
     window.location.href = `/today/{{ username }}/{{ user_id }}/${formattedDate}/`;
     {% else %}
     window.location.href = `/today/${formattedDate}/`;
+    {% endif %}
+    {% else %}
+    // User doesn't have edit permission - do nothing
+    console.log('Edit permission required');
     {% endif %}
 }
 </script>

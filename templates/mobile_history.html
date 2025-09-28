@@ -130,8 +130,8 @@
                 {% if entry.notes %}
                 <div class="mobile-section">
                     <h5 class="mobile-section-title">Notes:</h5>
-                    <div class="mobile-detail-row">
-                        {{ entry.notes|linebreaks }}
+                    <div class="mobile-detail-row rich-text-content">
+                        {{ entry.notes|render_rich_text_safe }}
                     </div>
                 </div>
                 {% endif %}
@@ -158,8 +158,8 @@
                 {% if entry.important_notes %}
                 <div class="mobile-section">
                     <h5 class="mobile-section-title">Important Notes:</h5>
-                    <div class="mobile-detail-row">
-                        {{ entry.important_notes|linebreaks }}
+                    <div class="mobile-detail-row rich-text-content">
+                        {{ entry.important_notes|render_rich_text_safe }}
                     </div>
                 </div>
                 {% endif %}

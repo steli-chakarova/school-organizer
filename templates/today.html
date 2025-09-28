@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load organizer_extras %}
+{% load static %}
 
 {% block title %}Today - School Organizer{% endblock %}
 
@@ -117,7 +118,8 @@
                     <div class="form-group">
                         <label>Notes:</label>
                         <textarea name="notes_{{ subject_schedule.subject.id }}" 
-                                  placeholder="Enter notes or comments..." 
+                                  id="notes_{{ subject_schedule.subject.id }}"
+                                  placeholder="Enter notes for this subject..." 
                                   class="notes-textarea">{% for entry in existing_entries %}{% if entry.subject.id == subject_schedule.subject.id %}{{ entry.notes|default:'' }}{% endif %}{% endfor %}</textarea>
                     </div>
                 </div>
@@ -174,6 +176,7 @@
                 <h4>Important Notes:</h4>
                     <div class="form-group">
                         <textarea name="important_notes_{{ subject_schedule.subject.id }}" 
+                                  id="important_notes_{{ subject_schedule.subject.id }}"
                                   class="important-notes-textarea" 
                                   placeholder="Enter any important notes for this subject...">{% for entry in existing_entries %}{% if entry.subject.id == subject_schedule.subject.id %}{{ entry.important_notes|default:"" }}{% endif %}{% endfor %}</textarea>
                     </div>
@@ -254,7 +257,8 @@
                             <div class="form-group">
                                 <label>Notes:</label>
                                 <textarea name="notes_new" 
-                                          placeholder="Enter notes or comments..." 
+                                          id="notes_new"
+                                          placeholder="Enter notes for this subject..." 
                                           class="notes-textarea"></textarea>
                             </div>
                         </div>
@@ -278,6 +282,7 @@
                             <h4>Important Notes:</h4>
                             <div class="form-group">
                                 <textarea name="important_notes_new" 
+                                          id="important_notes_new"
                                           class="important-notes-textarea" 
                                           placeholder="Enter any important notes for this subject..."></textarea>
                             </div>
@@ -584,6 +589,24 @@ document.addEventListener('DOMContentLoaded', function() {
 let autoSaveTimeouts = {};
 
 function initializeAutoSave() {
+    // Add form submission handler to sync rich text editor content
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            // Sync all rich text editor content to textareas before form submission
+            const textareas = form.querySelectorAll('textarea.notes-textarea, textarea.important-notes-textarea');
+            textareas.forEach(textarea => {
+                const wrapper = textarea.previousElementSibling;
+                if (wrapper && wrapper.classList.contains('tiptap-wrapper')) {
+                    const editor = wrapper.querySelector('.tiptap-editor');
+                    if (editor) {
+                        textarea.value = editor.innerHTML;
+                    }
+                }
+            });
+        });
+    });
+    
     // Add auto-save to all form inputs
     const formInputs = document.querySelectorAll('input, select, textarea');
     formInputs.forEach(input => {
@@ -681,6 +704,8 @@ function performAutoSave(subjectId) {
         }
     }
     
+    // Debug: Log the data being sent
+    
     // Send auto-save request
     fetch('/api/today-autosave/', {
         method: 'POST',
@@ -703,4 +728,8 @@ function performAutoSave(subjectId) {
 
 
 </script>
+
+{% block extra_js %}
+<script src="{% static 'tiptap-editor.js' %}"></script>
+{% endblock %}
 {% endblock %}
