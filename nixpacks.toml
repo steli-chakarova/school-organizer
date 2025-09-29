@@ -1,5 +1,27 @@
 [phases.setup]
-nixPkgs = ['python3', 'pip', 'nodejs', 'npm']
+nixPkgs = [
+  'python3', 
+  'pip', 
+  'nodejs', 
+  'npm',
+  'glib',
+  'nss',
+  'nspr',
+  'atk',
+  'at-spi2-atk',
+  'libcups',
+  'libxkbcommon',
+  'xorg.libX11',
+  'xorg.libXcomposite',
+  'xorg.libXdamage',
+  'xorg.libXext',
+  'xorg.libXfixes',
+  'xorg.libXrandr',
+  'mesa',
+  'cairo',
+  'pango',
+  'alsa-lib'
+]
 
 [phases.install]
 cmds = [
