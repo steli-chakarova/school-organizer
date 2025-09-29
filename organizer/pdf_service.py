@@ -11,7 +11,13 @@ def get_browser(headless=True):
         _thread_local.playwright = sync_playwright().start()
         _thread_local.browser = _thread_local.playwright.chromium.launch(
             headless=headless, 
-            args=["--no-sandbox"]
+            args=[
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--disable-web-security",
+                "--disable-features=VizDisplayCompositor"
+            ]
         )
     return _thread_local.browser
 

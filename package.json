@@ -1,0 +1,14 @@
+{
+  "name": "school-organizer",
+  "version": "1.0.0",
+  "description": "School Organizer Django Application",
+  "scripts": {
+    "postinstall": "playwright install chromium"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.55.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
