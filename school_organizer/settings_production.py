@@ -81,30 +81,5 @@ LOGGING = {
 # Ensure custom user model is set
 AUTH_USER_MODEL = 'organizer.User'
 
-# Force Django to use sync mode to prevent SynchronousOnlyOperation errors
+# Force Django to allow sync operations in async context
 DJANGO_ALLOW_ASYNC_UNSAFE = True
-
-# Explicitly disable ASGI and force WSGI usage
-ASGI_APPLICATION = None
-
-# Force sync database connections
-DATABASES['default']['CONN_MAX_AGE'] = 0
-# Remove MySQL-specific init_command for PostgreSQL
-
-# Disable async detection completely
-import asyncio
-import threading
-
-# Force Django to run in sync mode by monkey-patching async detection
-original_asyncio_current_task = asyncio.current_task
-original_asyncio_get_event_loop = asyncio.get_event_loop
-
-def mock_current_task():
-    return None
-
-def mock_get_event_loop():
-    return None
-
-# Monkey patch async detection
-asyncio.current_task = mock_current_task
-asyncio.get_event_loop = mock_get_event_loop

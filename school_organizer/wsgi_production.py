@@ -15,10 +15,7 @@ import sys
 
 from django.core.wsgi import get_wsgi_application
 
-# Force sync mode
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'school_organizer.settings_production')
-
-# Ensure we're in sync mode
 os.environ['DJANGO_ALLOW_ASYNC_UNSAFE'] = 'True'
 
 application = get_wsgi_application()
