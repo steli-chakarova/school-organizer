@@ -17,6 +17,12 @@ python3 railway_load_data.py
 # Pre-initialize browser for faster PDF generation
 echo "Pre-initializing browser..."
 python3 -c "
+import sys
+sys.path.append('/app')
+import os
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'school_organizer.settings_production')
+import django
+django.setup()
 from organizer.pdf_service import get_browser
 print('Initializing browser...')
 browser = get_browser()
