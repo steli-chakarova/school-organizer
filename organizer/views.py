@@ -1441,28 +1441,30 @@ class ExportJPEGView(View):
                         'pages': hw.pages or ''
                     })
                 
-                daily_data.append({
-                    'subject_name': schedule.subject.name,
-                    'book_name': main_entry.book.title if main_entry.book else None,
-                    'pages': main_entry.pages,
-                    'notes': main_entry.notes,
-                    'important_notes': main_entry.important_notes,
-                    'extras': extras,
-                    'homework': homework_books,
-                    'has_entry': True
-                })
+                # Only add this subject if it has meaningful content
+                has_content = (
+                    main_entry.book or  # Has a book
+                    main_entry.pages or  # Has pages
+                    main_entry.notes or  # Has notes
+                    main_entry.important_notes or  # Has important notes
+                    extras or  # Has extra books
+                    homework_books  # Has homework
+                )
+                
+                if has_content:
+                    daily_data.append({
+                        'subject_name': schedule.subject.name,
+                        'book_name': main_entry.book.title if main_entry.book else None,
+                        'pages': main_entry.pages,
+                        'notes': main_entry.notes,
+                        'important_notes': main_entry.important_notes,
+                        'extras': extras,
+                        'homework': homework_books,
+                        'has_entry': True
+                    })
             except DailyEntry.DoesNotExist:
-                # No entry for this subject
-                daily_data.append({
-                    'subject_name': schedule.subject.name,
-                    'book_name': None,
-                    'pages': None,
-                    'notes': None,
-                    'important_notes': None,
-                    'extras': [],
-                    'homework': [],
-                    'has_entry': False
-                })
+                # No entry for this subject - skip it (don't add empty subjects)
+                continue
         
         return daily_data
 
@@ -1552,17 +1554,28 @@ class ExportTemplatePDFView(View):
                 notes = daily_entry.notes if daily_entry else ""
                 important_notes = daily_entry.important_notes if daily_entry else ""
                 
-                daily_data.append({
-                    'subject_name': schedule.subject.name,
-                    'has_entry': has_entry,
-                    'book_name': book_name,
-                    'pages': pages,
-                    'extras': extras,
-                    'homework': homework,
-                    'notes': notes,
-                    'important_notes': important_notes,
-                    'created_by': schedule.created_by
-                })
+                # Only add this subject if it has meaningful content
+                has_content = (
+                    book_name or  # Has a book
+                    pages or  # Has pages
+                    notes or  # Has notes
+                    important_notes or  # Has important notes
+                    extras or  # Has extra books
+                    homework  # Has homework
+                )
+                
+                if has_content:
+                    daily_data.append({
+                        'subject_name': schedule.subject.name,
+                        'has_entry': has_entry,
+                        'book_name': book_name,
+                        'pages': pages,
+                        'extras': extras,
+                        'homework': homework,
+                        'notes': notes,
+                        'important_notes': important_notes,
+                        'created_by': schedule.created_by
+                    })
         
         return daily_data
     
