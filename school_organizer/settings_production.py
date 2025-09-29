@@ -92,3 +92,21 @@ DATABASES['default']['CONN_MAX_AGE'] = 0
 DATABASES['default']['OPTIONS'] = {
     'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
 }
+
+# Disable async detection completely
+import asyncio
+import threading
+
+# Force Django to run in sync mode by monkey-patching async detection
+original_asyncio_current_task = asyncio.current_task
+original_asyncio_get_event_loop = asyncio.get_event_loop
+
+def mock_current_task():
+    return None
+
+def mock_get_event_loop():
+    return None
+
+# Monkey patch async detection
+asyncio.current_task = mock_current_task
+asyncio.get_event_loop = mock_get_event_loop

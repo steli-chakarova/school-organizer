@@ -9,6 +9,7 @@ from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.views.decorators.http import require_http_methods
+from asgiref.sync import sync_to_async
 import json
 from django.contrib.auth.forms import UserCreationForm
 from django import forms
