@@ -31,3 +31,5 @@ ENV/
 
 # Railway
 .railway/
+school_env/
+node_modules/

@@ -15,21 +15,7 @@ from django import forms
 from datetime import datetime, date as date_module, timedelta
 import calendar
 
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether, PageBreak, Frame, PageTemplate, Image, ListFlowable, ListItem
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch, cm
-from reportlab.lib import colors
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib.fonts import addMapping
-
-from pdf2image import convert_from_bytes
-from io import BytesIO
-import tempfile
-import os
-import base64
-from PIL import Image as PILImage
+# ReportLab, pdf2image, and PIL imports removed - using Playwright for PDF/JPEG generation
 
 from .models import Subject, Book, WeeklySchedule, DailyEntry, DailyExtra, HomeworkEntry, User
 
@@ -134,12 +120,21 @@ class AdminRequiredMixin(LoginRequiredMixin):
 
 class TeacherOrAdminRequiredMixin(LoginRequiredMixin):
     def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return redirect('login')
-        if not (request.user.is_admin() or request.user.is_teacher()):
-            messages.error(request, 'Access denied. Teacher or Admin privileges required.')
-            return redirect('history')
-        return super().dispatch(request, *args, **kwargs)
+        try:
+            if not request.user.is_authenticated:
+                return redirect('login')
+            if not (request.user.is_admin() or request.user.is_teacher()):
+                messages.error(request, 'Access denied. Teacher or Admin privileges required.')
+                return redirect('history')
+            return super().dispatch(request, *args, **kwargs)
+        except Exception as e:
+            # Handle any sync/async issues gracefully
+            if 'SynchronousOnlyOperation' in str(e):
+                # Fall back to basic authentication check
+                if not hasattr(request, 'user') or not request.user.is_authenticated:
+                    return redirect('login')
+                return super().dispatch(request, *args, **kwargs)
+            raise e
 
 
 class ViewerOrAboveRequiredMixin(LoginRequiredMixin):
@@ -442,10 +437,15 @@ class ScheduleManagementView(TeacherOrAdminRequiredMixin, View):
         return redirect('home')
 
 
-class TodayView(TeacherOrAdminRequiredMixin, View):
+class TodayView(View):
     def get(self, request, date=None, username=None, user_id=None):
-        # Redirect anonymous users to history page
-        if not request.user.is_authenticated:
+        # Simple authentication check without session access
+        if not hasattr(request, 'user') or not request.user or request.user.is_anonymous:
+            return redirect('history')
+        
+        # Check if user has required permissions
+        if not (request.user.is_admin() or request.user.is_teacher()):
+            messages.error(request, 'Access denied. Teacher or Admin privileges required.')
             return redirect('history')
         
         # Determine target user and edit permissions
@@ -563,6 +563,15 @@ class TodayView(TeacherOrAdminRequiredMixin, View):
         })
     
     def post(self, request, date=None, username=None, user_id=None):
+        # Simple authentication check without session access
+        if not hasattr(request, 'user') or not request.user or request.user.is_anonymous:
+            return redirect('history')
+        
+        # Check if user has required permissions
+        if not (request.user.is_admin() or request.user.is_teacher()):
+            messages.error(request, 'Access denied. Teacher or Admin privileges required.')
+            return redirect('history')
+        
         # Check edit permissions
         if username and user_id:
             try:
@@ -1127,8 +1136,14 @@ class HistoryView(View):
         return daily_data
 
 
-class ExportPDFView(View):
+# ExportPDFView class removed - using ExportTemplatePDFView instead
+
+
+class ExportJPEGView(View):
     def get(self, request, date=None):
+        from django.template.loader import render_to_string
+        from .pdf_service import get_browser
+        
         # Parse the date
         if date:
             try:
@@ -1142,145 +1157,102 @@ class ExportPDFView(View):
         # Get daily data for the selected date
         daily_data = self.get_daily_data(selected_date)
         
-        # Create PDF response
-        response = HttpResponse(content_type='application/pdf')
+        # Build HTML content from the same data structure
+        html_content = self.build_html_content(daily_data, selected_date)
+        
+        # Render the print template
+        html = render_to_string("print/tiptap_pdf.html", {"doc_html": html_content})
+        base_url = request.build_absolute_uri("/")
+        
+        # Generate PDF using Playwright
+        from .pdf_service import html_to_pdf_bytes
+        pdf_bytes = html_to_pdf_bytes(html, base_url=base_url)
+        
+        # Create response
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="school_organizer_{selected_date.strftime("%d_%m_%Y")}.pdf"'
         
-        # Register fonts for Bulgarian text support
-        try:
-            # Try to register DejaVu Sans font (commonly available)
-            pdfmetrics.registerFont(TTFont('DejaVuSans', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
-            pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'))
-            font_name = 'DejaVuSans'
-            bold_font_name = 'DejaVuSans-Bold'
-        except:
-            try:
-                # Fallback to Liberation Sans
-                pdfmetrics.registerFont(TTFont('LiberationSans', '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf'))
-                pdfmetrics.registerFont(TTFont('LiberationSans-Bold', '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf'))
-                font_name = 'LiberationSans'
-                bold_font_name = 'LiberationSans-Bold'
-            except:
-                # Use built-in Helvetica as last resort
-                font_name = 'Helvetica'
-                bold_font_name = 'Helvetica-Bold'
-        
-        # Create PDF document
-        doc = SimpleDocTemplate(response, pagesize=A4, rightMargin=72, leftMargin=36, topMargin=36, bottomMargin=18)
-        
-        # Get styles
-        styles = getSampleStyleSheet()
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontName=bold_font_name,
-            fontSize=14,
-            spaceAfter=10,
-            alignment=1,  # Center alignment
-            textColor=colors.HexColor('#2c2c2c')
-        )
-        
-        subject_style = ParagraphStyle(
-            'SubjectTitle',
-            parent=styles['Heading2'],
-            fontName=bold_font_name,
-            fontSize=14,
-            spaceAfter=12,
-            spaceBefore=20,
-            textColor=colors.HexColor('#2c2c2c')
-        )
-        
-        normal_style = ParagraphStyle(
-            'CustomNormal',
-            parent=styles['Normal'],
-            fontName=font_name,
-            fontSize=10,
-            spaceAfter=6
-        )
-        
-        bold_style = ParagraphStyle(
-            'CustomBold',
-            parent=styles['Normal'],
-            fontName=bold_font_name,
-            fontSize=10,
-            spaceAfter=6
-        )
-        
-        # Build PDF content
-        story = []
+        return response
+    
+    def build_html_content(self, daily_data, selected_date):
+        """Build HTML content from daily data for Playwright PDF export"""
+        html_parts = []
         
         # Title
-        title = Paragraph(selected_date.strftime('%d %B %Y'), title_style)
-        story.append(title)
-        story.append(Spacer(1, 10))
+        html_parts.append(f'<h1 style="text-align: center; font-size: 18px; margin-bottom: 10px;">{selected_date.strftime("%d %B %Y")}</h1>')
         
         # Check if there's any data
         has_data = any(entry['has_entry'] for entry in daily_data)
         
         if not has_data:
-            no_data = Paragraph("No data saved for this day.", normal_style)
-            story.append(no_data)
+            html_parts.append('<p>No data saved for this day.</p>')
         else:
             # Add each subject's data
             for entry in daily_data:
                 if entry['has_entry']:
                     # Subject title
-                    subject_title = Paragraph(entry['subject_name'], subject_style)
-                    story.append(subject_title)
+                    html_parts.append(f'<h2 style="font-size: 16px; margin: 15px 0 8px 0;">{entry["subject_name"]}</h2>')
+                    
+                    # Start two-column layout
+                    html_parts.append('<div class="subject-content">')
+                    
+                    # Left column: Resources and Notes
+                    html_parts.append('<div class="left-column">')
                     
                     # Resources section
                     if entry['book_name'] or entry['extras']:
-                        story.append(Paragraph("Ресурси:", bold_style))
+                        html_parts.append('<div class="section">')
+                        html_parts.append('<div class="section-title">Ресурси:</div>')
                         
                         # Main book
                         if entry['book_name']:
                             resource_text = f"→ {entry['book_name']}"
                             if entry['pages']:
                                 resource_text += f" стр. {entry['pages']}"
-                            story.append(Paragraph(resource_text, normal_style))
+                            html_parts.append(f'<p>{resource_text}</p>')
                         
                         # Extra books
                         for extra in entry['extras']:
                             extra_text = f"→ {extra['book_name']}"
                             if extra['pages']:
                                 extra_text += f" стр. {extra['pages']}"
-                            story.append(Paragraph(extra_text, normal_style))
+                            html_parts.append(f'<p>{extra_text}</p>')
+                        html_parts.append('</div>')
                     
                     # Notes
                     if entry['notes']:
-                        story.append(Paragraph("Записки:", bold_style))
-                        # Convert HTML to ReportLab elements
-                        notes_elements = self.convert_html_to_reportlab(entry['notes'])
-                        if notes_elements:
-                            story.extend(notes_elements)
-                        else:
-                            story.append(Paragraph("Няма записки", normal_style))
+                        html_parts.append('<div class="section">')
+                        html_parts.append('<div class="section-title">Записки:</div>')
+                        html_parts.append(entry['notes'])
+                        html_parts.append('</div>')
+                    
+                    html_parts.append('</div>')  # End left column
+                    
+                    # Right column: Important Notes and Homework
+                    html_parts.append('<div class="right-column">')
+                    
+                    # Important Notes
+                    if entry.get('important_notes'):
+                        html_parts.append('<div class="section">')
+                        html_parts.append('<div class="section-title">Важно:</div>')
+                        html_parts.append(entry['important_notes'])
+                        html_parts.append('</div>')
                     
                     # Homework
                     if entry['homework']:
-                        story.append(Paragraph("Домашно:", bold_style))
+                        html_parts.append('<div class="section">')
+                        html_parts.append('<div class="section-title">Домашно:</div>')
                         for hw in entry['homework']:
                             hw_text = f"→ {hw['book_name']}"
                             if hw['pages']:
                                 hw_text += f" стр. {hw['pages']}"
-                            story.append(Paragraph(hw_text, normal_style))
+                            html_parts.append(f'<p>{hw_text}</p>')
+                        html_parts.append('</div>')
                     
-                    # Important Notes
-                    if entry.get('important_notes'):
-                        story.append(Paragraph("Важно:", bold_style))
-                        # Convert HTML to ReportLab elements
-                        important_elements = self.convert_html_to_reportlab(entry['important_notes'])
-                        if important_elements:
-                            story.extend(important_elements)
-                        else:
-                            story.append(Paragraph("Няма важни бележки", normal_style))
-                    
-                    story.append(Spacer(1, 15))
+                    html_parts.append('</div>')  # End right column
+                    html_parts.append('</div>')  # End subject-content
         
-        # Build PDF
-        doc.build(story)
-        
-        return response
+        return ''.join(html_parts)
     
     def get_daily_data(self, selected_date):
         """Helper method to get daily data for PDF export"""
@@ -1338,151 +1310,326 @@ class ExportPDFView(View):
                 })
         
         return daily_data
+
+    # Old ReportLab methods removed - using Playwright for PDF generation
     
-    def convert_html_to_reportlab(self, html_content):
-        """Convert HTML content to properly styled ReportLab flowable elements"""
-        if not html_content:
-            return []
+    def build_html_content(self, daily_data, selected_date):
+        """Build HTML content from daily data for template PDF export (same as PDF)"""
+        html_parts = []
         
-        import re
+        # Title
+        html_parts.append(f'<h1 style="text-align: center; font-size: 18px; margin-bottom: 10px;">{selected_date.strftime("%d %B %Y")}</h1>')
         
-        try:
+        # Check if there's any data
+        has_data = any(entry.get('has_entry', False) for entry in daily_data)
+        
+        if not has_data:
+            html_parts.append('<p>No data saved for this day.</p>')
+        else:
+            # Add each subject's data
+            for entry in daily_data:
+                if entry.get('has_entry', False):
+                # This is a checklist item
+                checked = checkbox.has_attr('checked') or checkbox.get('checked') is not None
+                prefix = "[x]" if checked else "[_]"
+                
+                # Get text content without the checkbox element
+                checkbox.decompose()  # Remove checkbox from the item
+                text_content = self.extract_text_with_inline_styles(item)
+                text_content = text_content.strip()
+                
+                if text_content:
+                    items.append(ListItem(Paragraph(f"{prefix} {text_content}", 
+                        ParagraphStyle('ListItem', fontSize=10, fontName='Helvetica'))))
+            else:
+                # Regular list item (bullet or numbered)
+                text_content = self.extract_text_with_inline_styles(item)
+                text_content = text_content.strip()
+                
+                if text_content:
+                    if ordered:
+                        # Numbered list - ReportLab will handle numbering automatically
+                        items.append(ListItem(Paragraph(text_content, 
+                            ParagraphStyle('ListItem', fontSize=10, fontName='Helvetica'))))
+                    else:
+                        # Bullet list - ReportLab will handle bullets automatically
+                        items.append(ListItem(Paragraph(text_content, 
+                            ParagraphStyle('ListItem', fontSize=10, fontName='Helvetica'))))
+        
+        return items
+
+    def create_checklist_from_container(self, container, style):
+        """Top-level "free text" task items (checkboxes not wrapped in <ul>)"""
+        cbs = container.find_all('input', {'type': 'checkbox'})
+        if not cbs: return None
+        items = []
+        for cb in cbs:
+            checked = cb.has_attr('checked') or cb.get('checked') is not None
+            # capture label until the next checkbox sibling
+            node, parts = cb.next_sibling, []
+            while node and not (getattr(node, 'name', None) == 'input' and node.get('type') == 'checkbox'):
+                parts.append(str(node)); node = node.next_sibling
+            frag = ''.join(parts).strip() or str(cb.parent)
+            # strip any inputs from the fragment
             from bs4 import BeautifulSoup
-        except ImportError:
-            # Fallback to basic text
-            return [Paragraph(html_content.replace('<', '&lt;').replace('>', '&gt;'), 
-                             ParagraphStyle('Normal', fontSize=10, fontName='Helvetica'))]
+            frag_soup = BeautifulSoup(frag, 'html.parser')
+            for ip in frag_soup.find_all('input', {'type':'checkbox'}): ip.decompose()
+            for lab in frag_soup.find_all('label'): lab.unwrap()
+            label = self.extract_text_with_inline_styles(frag_soup)
+            items.append(ListItem(Paragraph(label, style), bulletText='[x]' if checked else '[_]'))
+        return ListFlowable(
+            items,
+            bulletType='bullet',
+            leftIndent=self.LIST_LEFT, bulletIndent=self.LIST_BULLET,
+            bulletFontName=self.LIST_FONT, bulletFontSize=self.LIST_SIZE,
+        )
+
+    def create_checklist(self, ul, style):
+        from reportlab.platypus import ListFlowable, ListItem, Paragraph
         
-        # Add debug info to see what HTML we're processing
-        elements = [Paragraph(f"[DEBUG: Processing HTML: {html_content[:200]}...]", ParagraphStyle('Debug', fontSize=8, textColor=colors.red))]
+        lis = ul.find_all('li', recursive=False)
+        items = []
+        for li in lis:
+            cb = li.find('input', {'type': 'checkbox'})
+            checked = bool(cb and (cb.has_attr('checked') or cb.get('checked') is not None))
+            if cb: cb.decompose()
+            for lab in li.find_all('label', recursive=False): lab.unwrap()
+            label = self.extract_text_with_inline_styles(li)
+            items.append(ListItem(Paragraph(label, style), bulletText='[x]' if checked else '[_]'))
+        return ListFlowable(
+            items,
+            bulletType='bullet',
+            leftIndent=self.LIST_LEFT, bulletIndent=self.LIST_BULLET,
+            bulletFontName=self.LIST_FONT, bulletFontSize=self.LIST_SIZE,
+        )
+    
+    def create_unordered_list(self, ul, style):
+        from reportlab.platypus import ListFlowable, ListItem, Paragraph
         
-        # For now, use a simple fallback to avoid paraparser errors
-        # Convert HTML to plain text with basic formatting
-        plain_text = self.html_to_plain_text(html_content)
-        if plain_text.strip():
-            elements.append(Paragraph(plain_text, ParagraphStyle('Normal', fontSize=10, fontName='Helvetica')))
+        lis = ul.find_all('li', recursive=False)
+        items = []
+        for li in lis:
+            label = self.extract_text_with_inline_styles(li)
+            items.append(ListItem(Paragraph(label, style), bulletText='•'))
+        return ListFlowable(
+            items,
+            bulletType='bullet',
+            leftIndent=self.LIST_LEFT,
+            bulletIndent=self.LIST_BULLET,
+            bulletFontName=self.LIST_FONT,
+            bulletFontSize=self.LIST_SIZE,
+        )
+    
+    def create_ordered_list(self, ol, style):
+        from reportlab.platypus import ListFlowable, ListItem, Paragraph
         
-        return elements
+        lis = ol.find_all('li', recursive=False)
+        items = []
+        for i, li in enumerate(lis, 1):
+            label = self.extract_text_with_inline_styles(li)
+            items.append(ListItem(Paragraph(label, style), bulletText=f'{i}.'))
+        return ListFlowable(
+            items,
+            bulletType='bullet',  # we supply the numbers ourselves
+            leftIndent=self.LIST_LEFT, bulletIndent=self.LIST_BULLET,
+            bulletFontName=self.LIST_FONT, bulletFontSize=self.LIST_SIZE,
+        )
+    
+    def create_blockquote(self, blockquote_tag, style, content_width):
+        from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib import colors
+        
+        # build the cell like a table cell: preserve order + styles
+        cell = []
+        from bs4.element import NavigableString, Tag
+        for child in blockquote_tag.children:
+            if isinstance(child, NavigableString):
+                txt = str(child).strip()
+                if txt:
+                    cell.append(Paragraph(self.extract_text_with_inline_styles(child), style))
+            elif isinstance(child, Tag):
+                if child.name == 'ul':
+                    cell.append(self.create_checklist(child, style) if self.is_tasklist_ul(child)
+                                else self.create_unordered_list(child, style))
+                elif child.name == 'ol':
+                    cell.append(self.create_ordered_list(child, style))
+        else:
+                    # if this child contains checkboxes but isn't a UL, render as checklist container
+                    if child.find('input', {'type':'checkbox'}):
+                        cl = self.create_checklist_from_container(child, style)
+                        if cl: cell.append(cl)
+                    elif child.name in ('p','span','b','i','u','strong','em'):
+                        cell.append(Paragraph(self.extract_text_with_inline_styles(child), style))
+
+        tbl = Table([[cell]], colWidths=[self.TABLE_TOTAL_WIDTH + self.QUOTE_EXTRA_PTS])
+        tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f8f9fa')),
+            ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')),
+            ('LEFTPADDING', (0,0), (-1,-1), 8),
+            ('RIGHTPADDING', (0,0), (-1,-1), 8),
+            ('TOPPADDING', (0,0), (-1,-1), 6),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ]))
+        return tbl
+    
+    def render_cell(self, cell, style):
+        """Order-preserving cell renderer that maintains DOM order"""
+        from bs4.element import NavigableString, Tag
+        from reportlab.platypus import Paragraph, ListFlowable, ListItem
+        
+        items = []
+        for child in cell.children:
+            if isinstance(child, NavigableString):
+                txt = str(child).strip()
+                if txt:
+                    items.append(Paragraph(self.format_inline_styles_safe(txt), style))
+            elif isinstance(child, Tag):
+                name = child.name
+                if name in ('p', 'span', 'b', 'i', 'u', 'strong', 'em'):
+                    items.append(Paragraph(self.format_inline_styles_safe(str(child)), style))
+                elif name == 'ul':
+                    if self.is_tasklist_ul(child):
+                        items.append(self.create_checklist(child, style))
+                    else:
+                        items.append(self.create_unordered_list(child, style))
+                elif name == 'ol':
+                    items.append(self.create_ordered_list(child, style))
+        
+        if not items:
+            items.append(Paragraph('&nbsp;', style))
+        
+        return items
+    
+    def extract_text_with_inline_styles(self, element):
+        """Extract text content while preserving inline styles for ReportLab"""
+        if not element:
+            return ""
+        
+        # Build text with proper inline styling tags
+        result = ""
+        
+        def process_node(node):
+            nonlocal result
+            # Check if this is a Tag object (has name attribute) or NavigableString
+            if hasattr(node, 'name') and node.name is not None:
+                # This is a Tag object with children
+                if node.name in ['b', 'strong']:
+                    result += "<b>"
+                    for child in node.children:
+                        process_node(child)
+                    result += "</b>"
+                elif node.name in ['i', 'em']:
+                    result += "<i>"
+                    for child in node.children:
+                        process_node(child)
+                    result += "</i>"
+                elif node.name == 'u':
+                    result += "<u>"
+                    for child in node.children:
+                        process_node(child)
+                    result += "</u>"
+                elif node.name in ['input', 'br']:
+                    # Skip these tags
+                    pass
+            else:
+                    # For other tags, process children if they exist
+                    if hasattr(node, 'children'):
+                        for child in node.children:
+                            process_node(child)
+            else:
+                # This is a NavigableString (text node) or other object
+                result += str(node)
+        
+        # Process the element - check if it has children attribute
+        if hasattr(element, 'children'):
+            for child in element.children:
+                process_node(child)
+        else:
+            # If no children, it's likely a text node
+            result = str(element)
+        
+        # If no result, get plain text
+        if not result.strip():
+            result = element.get_text().strip() if hasattr(element, 'get_text') else str(element)
+        
+        return result
     
     def html_to_plain_text(self, html_content):
-        """Convert HTML to plain text with basic formatting markers"""
+        """Convert HTML to plain text with basic formatting markers - completely safe for ReportLab"""
         if not html_content:
             return ""
         
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(html_content, 'html.parser')
-        
-        # Remove script and style elements
-        for script in soup(["script", "style"]):
-            script.decompose()
-        
-        text_parts = []
-        
-        # Process each element
-        for element in soup.find_all(['p', 'div', 'table', 'ul', 'ol', 'blockquote', 'hr', 'pre', 'code']):
-            if element.name == 'table':
-                # Handle tables
-                rows = element.find_all('tr')
-                for row in rows:
-                    cells = row.find_all(['td', 'th'])
-                    row_text = []
-                    for cell in cells:
-                        cell_text = cell.get_text().strip()
-                        if cell_text:
-                            row_text.append(cell_text)
-                    if row_text:
-                        text_parts.append(" | ".join(row_text))
+        try:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(html_content, 'html.parser')
             
-            elif element.name in ['ul', 'ol']:
-                # Handle lists
-                items = element.find_all('li')
-                for i, item in enumerate(items):
-                    item_text = item.get_text().strip()
-                    if item_text:
-                        if element.name == 'ol':
-                            text_parts.append(f"{i+1}. {item_text}")
-                        else:
-                            # Check for checkbox
-                            checkbox = item.find('input', {'type': 'checkbox'})
-                            if checkbox:
-                                checked = checkbox.has_attr('checked') or checkbox.get('checked') is not None
-                                prefix = "[x]" if checked else "[ ]"
-                                text_parts.append(f"{prefix} {item_text}")
+            # Remove script and style elements
+            for script in soup(["script", "style"]):
+                script.decompose()
+            
+            text_parts = []
+            
+            # Process each element
+            for element in soup.find_all(['p', 'div', 'table', 'ul', 'ol', 'blockquote', 'hr', 'pre', 'code'], recursive=False):
+                if element.name == 'table':
+                    # Handle tables
+                    rows = element.find_all('tr')
+                    for row in rows:
+                        cells = row.find_all(['td', 'th'])
+                        row_text = []
+                        for cell in cells:
+                            cell_text = cell.get_text().strip()
+                            if cell_text:
+                                row_text.append(cell_text)
+                        if row_text:
+                            text_parts.append(" | ".join(row_text))
+                
+                elif element.name in ['ul', 'ol']:
+                    # Handle lists
+                    items = element.find_all('li')
+                    for i, item in enumerate(items):
+                        item_text = item.get_text().strip()
+                        if item_text:
+                            if element.name == 'ol':
+                                text_parts.append(f"{i+1}. {item_text}")
                             else:
-                                text_parts.append(f"• {item_text}")
+                                # Check for checkbox
+                                checkbox = item.find('input', {'type': 'checkbox'})
+                                if checkbox:
+                                    checked = checkbox.has_attr('checked') or checkbox.get('checked') is not None
+                                    prefix = "[x]" if checked else "[_]"   # ASCII checkboxes
+                                    text_parts.append(f"{prefix} {item_text}")
+                                else:
+                                    text_parts.append(f"• {item_text}")
+                
+                elif element.name == 'blockquote':
+                    # Handle blockquotes
+                    quote_text = element.get_text().strip()
+                    if quote_text:
+                        text_parts.append(f"> {quote_text}")
+                
+                elif element.name == 'hr':
+                    # Handle horizontal rules
+                    text_parts.append("---")
+                
+                else:
+                    # Handle other elements
+                    element_text = element.get_text().strip()
+                    if element_text:
+                        text_parts.append(element_text)
             
-            elif element.name == 'blockquote':
-                # Handle blockquotes
-                quote_text = element.get_text().strip()
-                if quote_text:
-                    text_parts.append(f"> {quote_text}")
+            # If no structured elements found, get all text
+            if not text_parts:
+                all_text = soup.get_text().strip()
+                if all_text:
+                    text_parts.append(all_text)
             
-            elif element.name == 'hr':
-                # Handle horizontal rules
-                text_parts.append("---")
+            return "\n".join(text_parts)
             
-            else:
-                # Handle other elements
-                element_text = element.get_text().strip()
-                if element_text:
-                    text_parts.append(element_text)
-        
-        # If no structured elements found, get all text
-        if not text_parts:
-            text_parts.append(soup.get_text().strip())
-        
-        return "\n".join(text_parts)
-    
-    def create_reportlab_table(self, table_element):
-        """Create a ReportLab table with proper borders and styling"""
-        try:
-            rows = table_element.find_all('tr')
-            if not rows:
-                return None
-            elif element.name in ['ul', 'ol']:
-                # Create proper lists
-                elements.append(Spacer(1, 4))  # Add spacing before lists
-                list_elements = self.create_reportlab_list(element)
-                elements.extend(list_elements)
-                elements.append(Spacer(1, 8))  # Add more spacing after lists
-            elif element.name == 'blockquote':
-                # Create styled blockquote with proper internal structure processing
-                # Process the blockquote content to preserve lists and checklists
-                blockquote_elements = self.process_blockquote_content(element)
-                if blockquote_elements:
-                    elements.append(Spacer(1, 12))  # Add more spacing before blockquote
-                    elements.extend(blockquote_elements)
-                    elements.append(Spacer(1, 15))  # Add even more spacing after blockquote
-            elif element.name in ['pre', 'code']:
-                # Create code block with monospace font and background
-                code_text = element.get_text().strip()
-                if code_text:
-                    elements.append(Paragraph(code_text, code_style))
-                    elements.append(Spacer(1, 6))
-            elif element.name == 'hr':
-                # Create horizontal divider line
-                elements.append(Spacer(1, 8))
-                # Create a thin gray line using a table with single cell
-                hr_table = Table([['']], colWidths=[3*inch])
-                hr_table.setStyle(TableStyle([
-                    ('LINEBELOW', (0, 0), (0, 0), 0.5, colors.HexColor('#888888')),  # Darker gray line
-                    ('PADDING', (0, 0), (0, 0), 0),
-                ]))
-                elements.append(hr_table)
-                elements.append(Spacer(1, 8))
-            else:
-                # Regular paragraph with inline formatting
-                para_text = self.format_inline_styles(str(element))
-                if para_text.strip():
-                    elements.append(Paragraph(para_text, normal_style))
-                    elements.append(Spacer(1, 3))  # Small spacing between paragraphs
-        
-        # If no structured elements found, process as plain text with inline formatting
-        if not elements:
-            para_text = self.format_inline_styles(html_content)
-            elements.append(Paragraph(para_text, normal_style))
-        
-        return elements
+        except Exception as e:
+            # If anything goes wrong, return a safe fallback
+            print(f"Error in html_to_plain_text: {e}")
+            return "Content could not be processed"
     
     def create_reportlab_table(self, table_element):
         """Create a ReportLab table with proper borders and styling"""
@@ -1491,8 +1638,50 @@ class ExportPDFView(View):
             if not rows:
                 return None
             
+            # Extract table data
             table_data = []
+            for row in rows:
+                cells = row.find_all(['td', 'th'])
+                row_data = []
+                for cell in cells:
+                    # Use new order-preserving cell renderer
+                    normal_style = ParagraphStyle('TableCell', fontSize=10, leading=12, leftIndent=0, fontName='Helvetica')
+                    cell_content = self.render_cell(cell, normal_style)
+                    row_data.append(cell_content)
+                table_data.append(row_data)
             
+            # Create table with proper column widths
+            table = Table(table_data, colWidths=self.TABLE_COL_WIDTHS)
+            
+            # Apply table styling
+            table_style = TableStyle([
+                # Grid lines - subtle gray
+                ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#e0e0e0')),
+                # Header row styling
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f0f0f0')),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                # Cell padding
+                ('PADDING', (0, 0), (-1, -1), 8, 8),
+                    # Text alignment
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    # Minimum row height
+                    ('MINROWHEIGHT', (0, 0), (-1, -1), 18),
+                ])
+            
+            table.setStyle(table_style)
+            return table
+            
+        except Exception as e:
+            print(f"Error creating table: {e}")
+            return None
+            rows = table_element.find_all('tr')
+            if not rows:
+                return None
+            
+        table_data = []
+        
             for i, row in enumerate(rows):
                 cells = row.find_all(['td', 'th'])
                 if cells:
@@ -1537,33 +1726,171 @@ class ExportPDFView(View):
         return None
     
     def format_cell_content(self, cell):
-        """Format content within table cells"""
-        content = []
+        """Format content within table cells as Paragraph objects"""
+        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.platypus import Paragraph
         
-        # Check for lists in cell
+        normal_style = ParagraphStyle('TableCell', fontSize=10, leading=12, leftIndent=0, fontName='Helvetica')
+        
         lists = cell.find_all(['ul', 'ol'])
+        lines = []
+        
         if lists:
             for list_elem in lists:
                 items = list_elem.find_all('li')
                 for j, item in enumerate(items):
                     text = item.get_text().strip()
                     if list_elem.name == 'ol':
-                        content.append(f"{j+1}. {text}")
+                        prefix = f"{j+1}."
                     else:
-                        # Check if it's a checklist - be more aggressive in detection
-                        if (any(keyword in str(item).lower() for keyword in ['checklist-item', 'checkbox', 'checklist', 'task', 'todo']) or
-                            'input' in str(item).lower() or 'type="checkbox"' in str(item).lower() or
-                            '[ ]' in str(item)):
-                            content.append(f"[ ] {text}")
+                        checkbox = item.find('input', {'type': 'checkbox'})
+                        if checkbox:
+                            checked = checkbox.has_attr('checked') or checkbox.get('checked') is not None
+                            prefix = "[x]" if checked else "[_]"   # ASCII checkboxes
                         else:
-                            content.append(f"• {text}")
+                            prefix = "-"   # plain dash for bullets
+                    lines.append(f"{prefix} {text}")
+        else:
+            text = cell.get_text().strip()
+            if text:
+                lines.append(text)
         
-        # Check for other content
-        if not content:
-            content.append(cell.get_text().strip())
-        
-        return '<br/>'.join(content)
+        return Paragraph("<br/>".join(lines), normal_style)
     
+    def format_cell_content_advanced(self, cell):
+        """Format content within table cells as Paragraph objects with proper list handling"""
+        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.platypus import Paragraph
+        
+        normal_style = ParagraphStyle('TableCell', fontSize=10, leading=12, leftIndent=0, fontName='Helvetica')
+        
+        # Check if cell has any content
+        cell_content = cell.get_text(strip=True)
+        if not cell_content:
+            # Return non-breaking space for empty cells to maintain row height
+            return Paragraph(" ", normal_style)
+        
+        # Check if cell contains lists
+        lists = cell.find_all(['ul', 'ol'])
+        if lists:
+            # Handle lists in table cells - each list item gets its own line
+            lines = []
+            for list_elem in lists:
+                items = list_elem.find_all('li')
+                for item in items:
+                    # Check for checkbox
+                    checkbox = item.find('input', {'type': 'checkbox'})
+                    if checkbox:
+                        checked = checkbox.has_attr('checked') or checkbox.get('checked') is not None
+                        prefix = "[x]" if checked else "[_]"
+                        checkbox.decompose()  # Remove checkbox
+                        text_content = self.extract_text_with_inline_styles(item)
+                        text_content = text_content.strip()
+                        if text_content:
+                            lines.append(f"{prefix} {text_content}")
+                    else:
+                        # Regular list item
+                        text_content = self.extract_text_with_inline_styles(item)
+                        text_content = text_content.strip()
+                        if text_content:
+                            lines.append(f"• {text_content}")
+            
+            # Also get any non-list content with inline styles preserved
+            for element in cell.children:
+                if hasattr(element, 'name') and element.name not in ['ul', 'ol']:
+                    text_content = self.extract_text_with_inline_styles(element)
+                    if text_content.strip():
+                        lines.append(text_content)
+            
+            if lines:
+                return Paragraph("<br/>".join(lines), normal_style)
+        
+        # Extract text content with inline styles preserved for regular content
+        text_content = self.extract_text_with_inline_styles(cell)
+        
+        # If no content, return non-breaking space
+        if not text_content.strip():
+            return Paragraph(" ", normal_style)
+        
+        # Return Paragraph object with proper styling and inline formatting
+        return Paragraph(text_content, normal_style)
+    
+    def extract_text_with_formatting(self, element):
+        """Extract text content while preserving inline formatting tags"""
+        if not element:
+            return ""
+        
+        # Get all text nodes and their formatting from the element
+        formatted_text = ""
+        
+        # Process each child element
+        for child in element.children:
+            if hasattr(child, 'name'):
+                # This is a tag
+                if child.name in ['b', 'strong']:
+                    formatted_text += f"<b>{child.get_text()}</b>"
+                elif child.name in ['i', 'em']:
+                    formatted_text += f"<i>{child.get_text()}</i>"
+                elif child.name == 'u':
+                    formatted_text += f"<u>{child.get_text()}</u>"
+                elif child.name in ['input', 'br']:
+                    # Skip these tags
+                    continue
+                else:
+                    # For other tags, just get the text
+                    formatted_text += child.get_text()
+            else:
+                # This is a text node
+                formatted_text += str(child)
+        
+        # If no formatted text found, get plain text
+        if not formatted_text.strip():
+            formatted_text = element.get_text().strip()
+        
+        return formatted_text
+    
+    def format_inline_styles_safe(self, text):
+        """Format inline styles with enhanced safety for ReportLab paraparser"""
+        import re
+        
+        if not text:
+            return ""
+        
+        # For maximum safety, remove all HTML tags and return plain text
+        # This prevents any HTML parsing errors in ReportLab
+        text = re.sub(r'<[^>]*>', '', text)
+        return text.strip()
+        
+        # Handle italic text - ensure proper tag matching
+        text = re.sub(r'<i>(.*?)</i>', r'<i>\1</i>', text)
+        text = re.sub(r'<em>(.*?)</em>', r'<i>\1</i>', text)
+        # Handle unclosed italic tags
+        text = re.sub(r'<i>([^<]*)', r'<i>\1</i>', text)
+        text = re.sub(r'<em>([^<]*)', r'<i>\1</i>', text)
+        
+        # Handle underline - ensure proper tag matching
+        text = re.sub(r'<u>(.*?)</u>', r'<u>\1</u>', text)
+        # Handle unclosed underline tags
+        text = re.sub(r'<u>([^<]*)', r'<u>\1</u>', text)
+        
+        # Handle strike-through - ensure proper tag matching
+        text = re.sub(r'<s>(.*?)</s>', r'<s>\1</s>', text)
+        text = re.sub(r'<strike>(.*?)</strike>', r'<s>\1</s>', text)
+        # Handle unclosed strike tags
+        text = re.sub(r'<s>([^<]*)', r'<s>\1</s>', text)
+        text = re.sub(r'<strike>([^<]*)', r'<s>\1</s>', text)
+        
+        # Remove any remaining problematic HTML tags
+        text = re.sub(r'<[^>]*$', '', text)  # Remove unclosed tags at end
+        text = re.sub(r'^[^<]*>', '', text)  # Remove orphaned closing tags at start
+        
+        # Clean up any remaining HTML entities
+        text = text.replace('&nbsp;', ' ')
+        text = text.replace('&amp;', '&')
+        text = text.replace('&lt;', '<')
+        text = text.replace('&gt;', '>')
+        
+        return text
     
     def create_reportlab_list(self, list_element):
         """Create ReportLab list items from HTML list element with proper Tiptap support"""
@@ -1571,24 +1898,30 @@ class ExportPDFView(View):
         items = list_element.find_all('li')
 
         for i, item in enumerate(items):
-            # Get text content while preserving inline formatting
-            # Use get_text() to avoid HTML tag issues, then apply formatting
-            text_content = item.get_text().strip()
-            text = self.format_inline_styles(text_content) if text_content else ""
-
+            # Check for checkbox first before processing text
+            checkbox = item.find('input', {'type': 'checkbox'})
+            
             if list_element.name == 'ol':
                 # Ordered list - use numbers
+                # Get text content while preserving inline formatting
+                text_content = self.extract_text_with_formatting(item)
+                text = self.format_inline_styles(text_content) if text_content else ""
                 prefix = f"{i+1}."
             else:
                 # Unordered list - check for checkbox
-                checkbox = item.find('input', {'type': 'checkbox'})
                 if checkbox:
                     # Checklist item - check if checked
                     checked = checkbox.has_attr('checked') or checkbox.get('checked') is not None
-                    prefix = "[x]" if checked else "[ ]"
+                    prefix = "[x]" if checked else "[_]"
+                    # Get text content while preserving inline formatting
+                    text_content = self.extract_text_with_formatting(item)
+                    text = self.format_inline_styles(text_content) if text_content else ""
                 else:
                     # Regular bullet list
-                    prefix = "•"
+                    prefix = "-"   # plain dash for bullets
+                    # Get text content while preserving inline formatting
+                    text_content = self.extract_text_with_formatting(item)
+                    text = self.format_inline_styles(text_content) if text_content else ""
 
             # Create paragraph with proper indentation
             elements.append(Paragraph(f"{prefix} {text}", 
@@ -1757,8 +2090,12 @@ class ExportPDFView(View):
             print(f"Error creating image from HTML: {e}")
             return None
 
-class ExportJPEGView(View):
+
+class ExportTemplatePDFView(View):
     def get(self, request, date=None):
+        from django.template.loader import render_to_string
+        from .pdf_service import get_browser
+        
         # Parse the date
         if date:
             try:
@@ -1770,137 +2107,45 @@ class ExportJPEGView(View):
             selected_date = date_module.today()
         
         # Get daily data for the selected date
-        daily_data = self.get_daily_data(selected_date)
+        daily_data = self.get_daily_data(selected_date, request)
         
-        # Create PDF in memory first
-        pdf_buffer = BytesIO()
+        # Build HTML content using the same template as PDF export
+        html_content = self.build_html_content(daily_data, selected_date)
         
-        # Register fonts for Bulgarian text support
+        # Render the template
+        doc_html = render_to_string('print/tiptap_pdf.html', {'doc_html': html_content})
+        
         try:
-            pdfmetrics.registerFont(TTFont("DejaVuSans", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"))
-            pdfmetrics.registerFont(TTFont("DejaVuSans-Bold", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"))
-            font_name = "DejaVuSans"
-            bold_font_name = "DejaVuSans-Bold"
-        except:
+            # Use Playwright to generate JPEG
+            browser = get_browser()
+            page = browser.new_page()
+            
             try:
-                pdfmetrics.registerFont(TTFont("LiberationSans", "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"))
-                pdfmetrics.registerFont(TTFont("LiberationSans-Bold", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"))
-                font_name = "LiberationSans"
-                bold_font_name = "LiberationSans-Bold"
-            except:
-                font_name = "Helvetica"
-                bold_font_name = "Helvetica-Bold"
-        
-        # Create PDF document in memory with same margins as template
-        doc = SimpleDocTemplate(pdf_buffer, pagesize=A4, rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20)
-        
-        # Get styles
-        styles = getSampleStyleSheet()
-        
-        # Title style
-        title_style = ParagraphStyle(
-            'TemplateTitle',
-            parent=styles['Heading1'],
-            fontName=bold_font_name,
-            fontSize=16,
-            spaceAfter=20,
-            alignment=1,  # Center
-            textColor=colors.HexColor('#2c2c2c')
-        )
-        
-        # Subject card header style
-        subject_header_style = ParagraphStyle(
-            'SubjectHeader',
-            parent=styles['Heading2'],
-            fontName=bold_font_name,
-            fontSize=16,
-            spaceAfter=8,
-            spaceBefore=0,
-            textColor=colors.HexColor('#2c2c2c'),
-            alignment=0  # Left alignment
-        )
-        
-        # Section header style
-        section_style = ParagraphStyle(
-            'SectionHeader',
-            parent=styles['Normal'],
-            fontName=bold_font_name,
-            fontSize=11,
-            spaceAfter=4,
-            spaceBefore=8,
-            textColor=colors.HexColor('#2c2c2c')
-        )
-        
-        # Normal text style
-        normal_style = ParagraphStyle(
-            'TemplateNormal',
-            parent=styles['Normal'],
-            fontName=font_name,
-            fontSize=10,
-            spaceAfter=3,
-            leftIndent=10,
-            wordWrap='CJK'  # Enable word wrapping for long text
-        )
-        
-        # Build PDF content
-        story = []
-        
-        # Title
-        title = Paragraph(selected_date.strftime('%d %B %Y'), title_style)
-        story.append(title)
-        story.append(Spacer(1, 10))
-        
-        # Check if there's any data
-        has_data = any(entry['has_entry'] for entry in daily_data)
-        
-        if not has_data:
-            no_data = Paragraph("No data saved for this day.", normal_style)
-            story.append(no_data)
-        else:
-            # Create subject cards
-            subjects_with_data = [entry for entry in daily_data if entry['has_entry']]
-            
-            for subject in subjects_with_data:
-                # Create subject card with enhanced visibility for JPEG
-                card_content = self.create_jpeg_subject_card(subject, subject_header_style, section_style, normal_style)
-                story.append(card_content)
-                story.append(Spacer(1, 20))  # Space between cards
-        
-        # Build PDF
-        doc.build(story)
-        
-        # Convert PDF to JPEG
-        pdf_buffer.seek(0)
-        pdf_bytes = pdf_buffer.getvalue()
-        
-        try:
-            # Convert PDF to images
-            images = convert_from_bytes(pdf_bytes, dpi=200, first_page=1, last_page=1)
-            
-            if images:
-                # Get the first page as JPEG
-                img_buffer = BytesIO()
-                images[0].save(img_buffer, format='JPEG', quality=95)
-                img_buffer.seek(0)
+                # Set content directly - no external resources needed for our use case
+                page.set_content(doc_html, wait_until="load")
+                
+                # Take screenshot as JPEG
+                jpeg_bytes = page.screenshot(
+                    type='jpeg',
+                    quality=95,
+                    full_page=True
+                )
                 
                 # Create JPEG response
-                response = HttpResponse(img_buffer.getvalue(), content_type='image/jpeg')
-                response['Content-Disposition'] = f'attachment; filename="school_organizer_resources_{selected_date.strftime("%d_%m_%Y")}.jpg"'
+                response = HttpResponse(jpeg_bytes, content_type='image/jpeg')
+                response['Content-Disposition'] = f'attachment; filename="school_organizer_{selected_date.strftime("%d_%m_%Y")}.jpg"'
                 
                 return response
-            else:
-                # Fallback to PDF if conversion fails
-                response = HttpResponse(pdf_bytes, content_type='application/pdf')
-                response['Content-Disposition'] = f'attachment; filename="school_organizer_resources_{selected_date.strftime("%d_%m_%Y")}.pdf"'
-                return response
+                
+            finally:
+                page.close()
                 
         except Exception as e:
-            # Fallback to PDF if conversion fails
-            response = HttpResponse(pdf_bytes, content_type='application/pdf')
-            response['Content-Disposition'] = f'attachment; filename="school_organizer_resources_{selected_date.strftime("%d_%m_%Y")}.pdf"'
-            return response
+            # Fallback: return error message
+            messages.error(request, f"Error generating JPEG: {str(e)}")
+            return redirect("history")
     
-    def get_daily_data(self, selected_date):
+    def get_daily_data(self, selected_date, request):
         """Helper method to get daily data for JPEG export"""
         # Get all subjects scheduled for this day (active schedules only)
         scheduled_subjects = WeeklySchedule.objects.filter(day_of_week=selected_date.weekday() + 1, is_active=True).select_related("subject").order_by("position")
@@ -1908,946 +2153,322 @@ class ExportJPEGView(View):
         daily_data = []
         
         for schedule in scheduled_subjects:
-            # Skip if schedule.subject is None
-            if not schedule.subject:
-                continue
+            # Check if user has access to this subject
+            if schedule.subject and schedule.subject.created_by == request.user:
+                # Get daily entry for this subject and date
+                daily_entry = DailyEntry.objects.filter(
+                    subject=schedule.subject,
+                    date=selected_date,
+                    created_by=request.user
+                ).first()
                 
-            # Try to find an existing entry for this subject and date
-            try:
-                main_entry = DailyEntry.objects.get(date=selected_date, subject=schedule.subject)
+                has_entry = daily_entry is not None
                 
-                # Get extra entries
+                # Get book information
+                book_name = ""
+                pages = ""
+                if daily_entry and daily_entry.book:
+                    book_name = daily_entry.book.title
+                    pages = daily_entry.pages or ""
+                
+                # Get extras
                 extras = []
-                for extra in main_entry.extras.all():
-                    extras.append({
-                        "book_name": extra.book.title if extra.book else "No book selected",
-                        "pages": extra.pages or ""
-                    })
+                if daily_entry:
+                    for extra in daily_entry.extras.all():
+                        extra_data = {
+                            'book_name': extra.book.title if extra.book else "",
+                            'pages': extra.pages or ""
+                        }
+                        extras.append(extra_data)
                 
-                # Get homework entries
-                homework_books = []
-                for hw in main_entry.homework_entries.all():
-                    homework_books.append({
-                        "book_name": hw.book.title if hw.book else "No book selected",
-                        "pages": hw.pages or ""
-                    })
+                # Get homework
+                homework = []
+                if daily_entry:
+                    for hw in daily_entry.homework_entries.all():
+                        hw_data = {
+                            'book_name': hw.book.title if hw.book else "",
+                            'pages': hw.pages or ""
+                        }
+                        homework.append(hw_data)
+                
+                # Get notes and important notes
+                notes = daily_entry.notes if daily_entry else ""
+                important_notes = daily_entry.important_notes if daily_entry else ""
                 
                 daily_data.append({
-                    "subject_name": schedule.subject.name,
-                    "book_name": main_entry.book.title if main_entry.book else None,
-                    "pages": main_entry.pages,
-                    "notes": main_entry.notes,
-                    "important_notes": main_entry.important_notes,
-                    "extras": extras,
-                    "homework": homework_books,
-                    "has_entry": True
-                })
-            except DailyEntry.DoesNotExist:
-                # No entry for this subject
-                daily_data.append({
-                    "subject_name": schedule.subject.name,
-                    "book_name": None,
-                    "pages": None,
-                    "notes": None,
-                    "important_notes": None,
-                    "extras": [],
-                    "homework": [],
-                    "has_entry": False
+                    'subject_name': schedule.subject.name,
+                    'has_entry': has_entry,
+                    'book_name': book_name,
+                    'pages': pages,
+                    'extras': extras,
+                    'homework': homework,
+                    'notes': notes,
+                    'important_notes': important_notes,
+                    'created_by': schedule.created_by
                 })
         
         return daily_data
     
-    def create_subject_card(self, subject_data, subject_header_style, section_style, normal_style):
-        """Create a styled subject card with two-column layout"""
+    def build_html_content(self, daily_data, selected_date):
+        """Build HTML content from daily data for JPEG export (only Ресурси, Важно, Домашно)"""
+        html_parts = []
         
-        # Prepare left column content (Resources, Notes)
-        left_content = []
+        # Title
+        html_parts.append(f'<h1 style="text-align: center; font-size: 18px; margin-bottom: 10px;">{selected_date.strftime("%d %B %Y")}</h1>')
+        
+        # Check if there's any data
+        has_data = any(entry['has_entry'] for entry in daily_data)
+        
+        if not has_data:
+            html_parts.append('<p>No data saved for this day.</p>')
+        else:
+            # Add each subject's data
+            for entry in daily_data:
+                if entry['has_entry']:
+                    # Subject title
+                    html_parts.append(f'<h2 style="font-size: 16px; margin: 15px 0 8px 0;">{entry["subject_name"]}</h2>')
+                    
+                    # Start two-column layout
+                    html_parts.append('<div class="subject-content">')
+                    
+                    # Left column: Resources only (no Notes for JPEG)
+                    html_parts.append('<div class="left-column">')
         
         # Resources section
-        resources = []
-        if subject_data['book_name']:
-            resource_text = f"→ {subject_data['book_name']}"
-            if subject_data['pages']:
-                resource_text += f" стр. {subject_data['pages']}"
-            resources.append(resource_text)
-        
-        for extra in subject_data['extras']:
+                    if entry['book_name'] or entry['extras']:
+                        html_parts.append('<div class="section">')
+                        html_parts.append('<div class="section-title">Ресурси:</div>')
+                        
+                        # Main book
+                        if entry['book_name']:
+                            resource_text = f"→ {entry['book_name']}"
+                            if entry['pages']:
+                                resource_text += f" стр. {entry['pages']}"
+                            html_parts.append(f'<p>{resource_text}</p>')
+                        
+                        # Extra books
+                        for extra in entry['extras']:
             extra_text = f"→ {extra['book_name']}"
             if extra['pages']:
                 extra_text += f" стр. {extra['pages']}"
-            resources.append(extra_text)
-        
-        if resources:
-            left_content.append(Paragraph("<b>Ресурси:</b>", section_style))
-            for resource in resources:
-                left_content.append(Paragraph(resource, normal_style))
-        
-        # Notes section
-        if subject_data['notes']:
-            left_content.append(Paragraph("<b>Бележки:</b>", section_style))
-            # Convert HTML to ReportLab elements
-            notes_elements = self.convert_html_to_reportlab(subject_data['notes'])
-            if notes_elements:
-                left_content.extend(notes_elements)
-            else:
-                left_content.append(Paragraph("Няма бележки", normal_style))
-        
-        # Prepare right column content (Homework, Important Notes)
-        right_content = []
-        
-        # Homework section
-        if subject_data['homework']:
-            right_content.append(Paragraph("<b>Домашно:</b>", section_style))
-            for hw in subject_data['homework']:
+                            html_parts.append(f'<p>{extra_text}</p>')
+                        html_parts.append('</div>')
+                    
+                    # Notes - SKIPPED for JPEG export (only show Ресурси, Важно, Домашно)
+                    # if entry['notes']:
+                    #     html_parts.append('<div class="section">')
+                    #     html_parts.append('<div class="section-title">Записки:</div>')
+                    #     html_parts.append(entry['notes'])
+                    #     html_parts.append('</div>')
+                    
+                    html_parts.append('</div>')  # End left column
+                    
+                    # Right column: Important Notes and Homework
+                    html_parts.append('<div class="right-column">')
+                    
+                    # Important Notes
+                    if entry.get('important_notes'):
+                        html_parts.append('<div class="section">')
+                        html_parts.append('<div class="section-title">Важно:</div>')
+                        html_parts.append(entry['important_notes'])
+                        html_parts.append('</div>')
+                    
+                    # Homework
+                    if entry['homework']:
+                        html_parts.append('<div class="section">')
+                        html_parts.append('<div class="section-title">Домашно:</div>')
+                        for hw in entry['homework']:
                 hw_text = f"→ {hw['book_name']}"
                 if hw['pages']:
                     hw_text += f" стр. {hw['pages']}"
-                right_content.append(Paragraph(hw_text, normal_style))
+                            html_parts.append(f'<p>{hw_text}</p>')
+                        html_parts.append('</div>')
+                    
+                    html_parts.append('</div>')  # End right column
+                    html_parts.append('</div>')  # End subject-content
         
-        # Important Notes section
-        if subject_data.get('important_notes'):
-            right_content.append(Paragraph("<b>Важни бележки:</b>", section_style))
-            # Convert HTML to ReportLab elements
-            important_elements = self.convert_html_to_reportlab(subject_data['important_notes'])
-            if important_elements:
-                right_content.extend(important_elements)
-            else:
-                right_content.append(Paragraph("Няма важни бележки", normal_style))
-        
-        # Create the card table
-        card_width = A4[0] - 40  # Full width minus margins
-        col_width = (card_width - 30) / 2  # Two columns with separator space (increased separator space)
-        
-        # Create table data
-        table_data = []
-        
-        # Header row with subject name and yellow accent
-        header_cell = Paragraph(f"<b>{subject_data['subject_name']}</b>", subject_header_style)
-        table_data.append([header_cell, ""])
-        
-        # Content row with two columns
-        left_cell_content = left_content if left_content else [Paragraph("", normal_style)]
-        right_cell_content = right_content if right_content else [Paragraph("", normal_style)]
-        
-        # Create left column cell
-        left_cell = Table([[item] for item in left_cell_content], colWidths=[col_width])
-        left_cell.setStyle(TableStyle([
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 15),  # Increased right padding
-            ('TOPPADDING', (0, 0), (-1, -1), 0),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-        ]))
-        
-        # Create right column cell
-        right_cell = Table([[item] for item in right_cell_content], colWidths=[col_width])
-        right_cell.setStyle(TableStyle([
-            ('LEFTPADDING', (0, 0), (-1, -1), 15),  # Increased left padding
-            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-            ('TOPPADDING', (0, 0), (-1, -1), 0),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-        ]))
-        
-        table_data.append([left_cell, right_cell])
-        
-        # Create the main card table with yellow left border design
-        card_table = Table(table_data, colWidths=[col_width, col_width])
-        card_table.setStyle(TableStyle([
-            # Card styling with yellow left border
-            ('BACKGROUND', (0, 0), (-1, -1), colors.white),
-            # Yellow left border full height
-            ('LINEBEFORE', (0, 0), (0, -1), 4, colors.HexColor('#FFD700')),
-            # More visible gray horizontal line under subject name, spanning full width
-            ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#707070')),
-            # More visible gray vertical separator between columns
-            ('LINEBEFORE', (1, 1), (1, 1), 2, colors.HexColor('#707070')),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            # Padding with extra space on left for yellow border
-            ('LEFTPADDING', (0, 0), (-1, -1), 20),  # Extra space for yellow border
-            ('RIGHTPADDING', (0, 0), (-1, -1), 15),
-            ('TOPPADDING', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-            # Header styling
-            ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (0, 0), 16),
-            ('TEXTCOLOR', (0, 0), (0, 0), colors.HexColor('#2c2c2c')),
-            # Remove grid lines
-            ('INNERGRID', (0, 0), (-1, -1), 0, colors.white),
-            ('LINEABOVE', (0, 1), (-1, 1), 0, colors.white),
-            # Ensure content doesn't overflow
-            ('WORDWRAP', (0, 1), (-1, 1), 'CJK'),
-        ]))
-        
-        return card_table
-    
-    def create_jpeg_subject_card(self, subject_data, subject_header_style, section_style, normal_style):
-        """Create a styled subject card with only Resources and Homework for JPEG export"""
-        
-        # Prepare left column content (Resources only)
-        left_content = []
-        
-        # Resources section
-        resources = []
-        if subject_data['book_name']:
-            resource_text = f"→ {subject_data['book_name']}"
-            if subject_data['pages']:
-                resource_text += f" стр. {subject_data['pages']}"
-            resources.append(resource_text)
-        
-        for extra in subject_data['extras']:
-            extra_text = f"→ {extra['book_name']}"
-            if extra['pages']:
-                extra_text += f" стр. {extra['pages']}"
-            resources.append(extra_text)
-        
-        if resources:
-            left_content.append(Paragraph("<b>Ресурси:</b>", section_style))
-            for resource in resources:
-                left_content.append(Paragraph(resource, normal_style))
-        
-        # Prepare right column content (Homework only)
-        right_content = []
-        
-        # Homework section
-        if subject_data['homework']:
-            right_content.append(Paragraph("<b>Домашно:</b>", section_style))
-            for hw in subject_data['homework']:
-                hw_text = f"→ {hw['book_name']}"
-                if hw['pages']:
-                    hw_text += f" стр. {hw['pages']}"
-                right_content.append(Paragraph(hw_text, normal_style))
-        
-        # Create the card table
-        card_width = A4[0] - 40  # Full width minus margins
-        col_width = (card_width - 30) / 2  # Two columns with separator space
-        
-        # Create table data
-        table_data = []
-        
-        # Header row with subject name and yellow accent
-        header_cell = Paragraph(f"<b>{subject_data['subject_name']}</b>", subject_header_style)
-        table_data.append([header_cell, ""])
-        
-        # Content row with two columns
-        left_cell_content = left_content if left_content else [Paragraph("", normal_style)]
-        right_cell_content = right_content if right_content else [Paragraph("", normal_style)]
-        
-        # Create left column cell
-        left_cell = Table([[item] for item in left_cell_content], colWidths=[col_width])
-        left_cell.setStyle(TableStyle([
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 15),
-            ('TOPPADDING', (0, 0), (-1, -1), 0),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-        ]))
-        
-        # Create right column cell
-        right_cell = Table([[item] for item in right_cell_content], colWidths=[col_width])
-        right_cell.setStyle(TableStyle([
-            ('LEFTPADDING', (0, 0), (-1, -1), 15),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-            ('TOPPADDING', (0, 0), (-1, -1), 0),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-        ]))
-        
-        table_data.append([left_cell, right_cell])
-        
-        # Create the main card table with visible horizontal line and yellow border
-        card_table = Table(table_data, colWidths=[col_width, col_width])
-        card_table.setStyle(TableStyle([
-            # Card styling with visible lines
-            ('BACKGROUND', (0, 0), (-1, -1), colors.white),
-            # Yellow left border - thick enough to be visible
-            ('LINEBEFORE', (0, 0), (0, -1), 6, colors.HexColor('#FFD700')),
-            # Black horizontal line under subject name - thick enough to be visible
-            ('LINEBELOW', (0, 0), (-1, 0), 3, colors.black),
-            # No vertical separator between columns
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            # Padding with extra space on left for yellow border
-            ('LEFTPADDING', (0, 0), (-1, -1), 20),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 15),
-            ('TOPPADDING', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-            # Header styling
-            ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (0, 0), 16),
-            ('TEXTCOLOR', (0, 0), (0, 0), colors.HexColor('#2c2c2c')),
-            # Remove internal grid lines but keep the main lines
-            ('INNERGRID', (0, 0), (-1, -1), 0, colors.white),
-            ('LINEABOVE', (0, 1), (-1, 1), 0, colors.white),
-            ('LINEBEFORE', (1, 1), (1, 1), 0, colors.white),
-            # Ensure content doesn't overflow
-            ('WORDWRAP', (0, 1), (-1, 1), 'CJK'),
-        ]))
-        
-        return card_table
+        return ''.join(html_parts)
 
 
 class ExportTemplatePDFView(View):
+    
     def get(self, request, date=None):
+        from django.template.loader import render_to_string
+        from .pdf_service import html_to_pdf_bytes
+        
         # Parse the date
         if date:
             try:
                 selected_date = datetime.strptime(date, '%d-%m-%y').date()
             except ValueError:
                 messages.error(request, "Invalid date format")
-                return redirect('history')
+                return redirect("history")
         else:
             selected_date = date_module.today()
         
         # Get daily data for the selected date
-        daily_data = self.get_daily_data(selected_date)
+        daily_data = self.get_daily_data(selected_date, request)
+        
+        # Build HTML content using the same template as PDF export
+        html_content = self.build_html_content(daily_data, selected_date)
+        
+        # Render the template
+        doc_html = render_to_string('print/tiptap_pdf.html', {'doc_html': html_content})
+        
+        # Generate PDF
+        pdf_bytes = html_to_pdf_bytes(doc_html)
         
         # Create PDF response
-        response = HttpResponse(content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="school_template_{selected_date.strftime("%d_%m_%Y")}.pdf"'
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="school_organizer_template_{selected_date.strftime("%d_%m_%Y")}.pdf"'
         
-        # Register fonts for Bulgarian text support
-        try:
-            pdfmetrics.registerFont(TTFont('DejaVuSans', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
-            pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'))
-            font_name = 'DejaVuSans'
-            bold_font_name = 'DejaVuSans-Bold'
-        except:
-            try:
-                pdfmetrics.registerFont(TTFont('LiberationSans', '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf'))
-                pdfmetrics.registerFont(TTFont('LiberationSans-Bold', '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf'))
-                font_name = 'LiberationSans'
-                bold_font_name = 'LiberationSans-Bold'
-            except:
-                font_name = 'Helvetica'
-                bold_font_name = 'Helvetica-Bold'
+        return response
+    
+    def get_daily_data(self, selected_date, request):
+        """Helper method to get daily data for template PDF export"""
+        # Get all subjects scheduled for this day (active schedules only)
+        scheduled_subjects = WeeklySchedule.objects.filter(day_of_week=selected_date.weekday() + 1, is_active=True).select_related("subject").order_by("position")
         
-        # Create PDF document with custom page template
-        doc = SimpleDocTemplate(response, pagesize=A4, rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20)
+        daily_data = []
         
-        # Define styles
-        styles = getSampleStyleSheet()
+        for schedule in scheduled_subjects:
+            # Check if user has access to this subject
+            if schedule.subject and schedule.subject.created_by == request.user:
+                # Get daily entry for this subject and date
+                daily_entry = DailyEntry.objects.filter(
+                    subject=schedule.subject,
+                    date=selected_date,
+                    created_by=request.user
+                ).first()
+                
+                has_entry = daily_entry is not None
+                
+                # Get book information
+                book_name = ""
+                pages = ""
+                if daily_entry and daily_entry.book:
+                    book_name = daily_entry.book.title
+                    pages = daily_entry.pages or ""
+                
+                # Get extras
+                extras = []
+                if daily_entry:
+                    for extra in daily_entry.extras.all():
+                        extra_data = {
+                            'book_name': extra.book.title if extra.book else "",
+                            'pages': extra.pages or ""
+                        }
+                        extras.append(extra_data)
+                
+                # Get homework
+                homework = []
+                if daily_entry:
+                    for hw in daily_entry.homework_entries.all():
+                        hw_data = {
+                            'book_name': hw.book.title if hw.book else "",
+                            'pages': hw.pages or ""
+                        }
+                        homework.append(hw_data)
+                
+                # Get notes and important notes
+                notes = daily_entry.notes if daily_entry else ""
+                important_notes = daily_entry.important_notes if daily_entry else ""
+                
+                daily_data.append({
+                    'subject_name': schedule.subject.name,
+                    'has_entry': has_entry,
+                    'book_name': book_name,
+                    'pages': pages,
+                    'extras': extras,
+                    'homework': homework,
+                    'notes': notes,
+                    'important_notes': important_notes,
+                    'created_by': schedule.created_by
+                })
         
-        # Title style
-        title_style = ParagraphStyle(
-            'TemplateTitle',
-            parent=styles['Heading1'],
-            fontName=bold_font_name,
-            fontSize=16,
-            spaceAfter=20,
-            alignment=1,  # Center
-            textColor=colors.HexColor('#2c2c2c')
-        )
-        
-        # Subject card header style
-        subject_header_style = ParagraphStyle(
-            'SubjectHeader',
-            parent=styles['Heading2'],
-            fontName=bold_font_name,
-            fontSize=16,
-            spaceAfter=8,
-            spaceBefore=0,
-            textColor=colors.HexColor('#2c2c2c'),
-            alignment=0  # Left alignment
-        )
-        
-        # Section header style
-        section_style = ParagraphStyle(
-            'SectionHeader',
-            parent=styles['Normal'],
-            fontName=bold_font_name,
-            fontSize=11,
-            spaceAfter=4,
-            spaceBefore=8,
-            textColor=colors.HexColor('#2c2c2c')
-        )
-        
-        # Normal text style
-        normal_style = ParagraphStyle(
-            'TemplateNormal',
-            parent=styles['Normal'],
-            fontName=font_name,
-            fontSize=10,
-            spaceAfter=3,
-            leftIndent=10,
-            wordWrap='CJK'  # Enable word wrapping for long text
-        )
-        
-        # Build PDF content
-        story = []
+        return daily_data
+
+    def build_html_content(self, daily_data, selected_date):
+        """Build HTML content from daily data for template PDF export (same as PDF)"""
+        html_parts = []
         
         # Title
-        title = Paragraph(selected_date.strftime('%d %B %Y'), title_style)
-        story.append(title)
-        story.append(Spacer(1, 10))  # Reduced spacing from 20 to 10
+        html_parts.append(f'<h1 style="text-align: center; font-size: 18px; margin-bottom: 10px;">{selected_date.strftime("%d %B %Y")}</h1>')
         
         # Check if there's any data
         has_data = any(entry['has_entry'] for entry in daily_data)
         
         if not has_data:
-            no_data = Paragraph("No data saved for this day.", normal_style)
-            story.append(no_data)
+            html_parts.append('<p>No data saved for this day.</p>')
         else:
-            # Create subject cards
-            subjects_with_data = [entry for entry in daily_data if entry['has_entry']]
-            
-            for subject in subjects_with_data:
-                # Create subject card
-                card_content = self.create_subject_card(subject, subject_header_style, section_style, normal_style)
-                story.append(card_content)
-                story.append(Spacer(1, 20))  # Increased space between cards for better separation
-        
-        # Build PDF
-        doc.build(story)
-        
-        return response
-    
-    def create_subject_card(self, subject_data, subject_header_style, section_style, normal_style):
-        """Create a styled subject card with two-column layout"""
-        
-        # Prepare left column content (Resources, Notes)
-        left_content = []
+            # Add each subject's data in template format
+            for entry in daily_data:
+                if entry['has_entry']:
+                    # Subject title
+                    html_parts.append(f'<h2 style="font-size: 16px; margin: 15px 0 8px 0;">{entry["subject_name"]}</h2>')
+                    
+                    # Start two-column layout
+                    html_parts.append('<div class="subject-content">')
+                    
+                    # Left column: Resources and Notes
+                    html_parts.append('<div class="left-column">')
         
         # Resources section
-        resources = []
-        if subject_data['book_name']:
-            resource_text = f"→ {subject_data['book_name']}"
-            if subject_data['pages']:
-                resource_text += f" стр. {subject_data['pages']}"
-            resources.append(resource_text)
-        
-        for extra in subject_data['extras']:
-            extra_text = f"→ {extra['book_name']}"
-            if extra['pages']:
-                extra_text += f" стр. {extra['pages']}"
-            resources.append(extra_text)
-        
-        if resources:
-            left_content.append(Paragraph("<b>Ресурси:</b>", section_style))
-            for resource in resources:
-                left_content.append(Paragraph(resource, normal_style))
-        
-        # Notes section
-        if subject_data['notes']:
-            left_content.append(Paragraph("<b>Бележки:</b>", section_style))
-            # Convert HTML to ReportLab elements
-            notes_elements = self.convert_html_to_reportlab(subject_data['notes'])
-            if notes_elements:
-                left_content.extend(notes_elements)
-            else:
-                left_content.append(Paragraph("Няма бележки", normal_style))
-        
-        # Prepare right column content (Homework, Important Notes)
-        right_content = []
-        
-        # Homework section
-        if subject_data['homework']:
-            right_content.append(Paragraph("<b>Домашно:</b>", section_style))
-            for hw in subject_data['homework']:
-                hw_text = f"→ {hw['book_name']}"
-                if hw['pages']:
-                    hw_text += f" стр. {hw['pages']}"
-                right_content.append(Paragraph(hw_text, normal_style))
-        
-        # Important Notes section
-        if subject_data.get('important_notes'):
-            right_content.append(Paragraph("<b>Важни бележки:</b>", section_style))
-            # Convert HTML to ReportLab elements
-            important_elements = self.convert_html_to_reportlab(subject_data['important_notes'])
-            if important_elements:
-                right_content.extend(important_elements)
-            else:
-                right_content.append(Paragraph("Няма важни бележки", normal_style))
-        
-        # Create the card table
-        card_width = A4[0] - 40  # Full width minus margins
-        col_width = (card_width - 30) / 2  # Two columns with separator space (increased separator space)
-        
-        # Create table data
-        table_data = []
-        
-        # Header row with subject name and yellow accent
-        header_cell = Paragraph(f"<b>{subject_data['subject_name']}</b>", subject_header_style)
-        table_data.append([header_cell, ""])
-        
-        # Content row with two columns
-        left_cell_content = left_content if left_content else [Paragraph("", normal_style)]
-        right_cell_content = right_content if right_content else [Paragraph("", normal_style)]
-        
-        # Create left column cell
-        left_cell = Table([[item] for item in left_cell_content], colWidths=[col_width])
-        left_cell.setStyle(TableStyle([
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 15),  # Increased right padding
-            ('TOPPADDING', (0, 0), (-1, -1), 0),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-        ]))
-        
-        # Create right column cell
-        right_cell = Table([[item] for item in right_cell_content], colWidths=[col_width])
-        right_cell.setStyle(TableStyle([
-            ('LEFTPADDING', (0, 0), (-1, -1), 15),  # Increased left padding
-            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-            ('TOPPADDING', (0, 0), (-1, -1), 0),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-        ]))
-        
-        table_data.append([left_cell, right_cell])
-        
-        # Create the main card table with yellow left border design
-        card_table = Table(table_data, colWidths=[col_width, col_width])
-        card_table.setStyle(TableStyle([
-            # Card styling with yellow left border
-            ('BACKGROUND', (0, 0), (-1, -1), colors.white),
-            # Yellow left border full height
-            ('LINEBEFORE', (0, 0), (0, -1), 4, colors.HexColor('#FFD700')),
-            # More visible gray horizontal line under subject name, spanning full width
-            ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#707070')),
-            # More visible gray vertical separator between columns
-            ('LINEBEFORE', (1, 1), (1, 1), 2, colors.HexColor('#707070')),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            # Padding with extra space on left for yellow border
-            ('LEFTPADDING', (0, 0), (-1, -1), 20),  # Extra space for yellow border
-            ('RIGHTPADDING', (0, 0), (-1, -1), 15),
-            ('TOPPADDING', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-            # Header styling
-            ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (0, 0), 16),
-            ('TEXTCOLOR', (0, 0), (0, 0), colors.HexColor('#2c2c2c')),
-            # Remove grid lines
-            ('INNERGRID', (0, 0), (-1, -1), 0, colors.white),
-            ('LINEABOVE', (0, 1), (-1, 1), 0, colors.white),
-            # Ensure content doesn't overflow
-            ('WORDWRAP', (0, 1), (-1, 1), 'CJK'),
-        ]))
-        
-        return card_table
-    
-    def get_daily_data(self, selected_date):
-        """Helper method to get daily data for template PDF export"""
-        # Get all subjects scheduled for this day (active schedules only)
-        scheduled_subjects = WeeklySchedule.objects.filter(day_of_week=selected_date.weekday() + 1, is_active=True).select_related('subject').order_by('position')
-        
-        daily_data = []
-        
-        for schedule in scheduled_subjects:
-            # Skip if schedule.subject is None
-            if not schedule.subject:
-                continue
-                
-            # Try to find an existing entry for this subject and date
-            try:
-                main_entry = DailyEntry.objects.get(date=selected_date, subject=schedule.subject)
-                
-                # Get extra entries
-                extras = []
-                for extra in main_entry.extras.all():
-                    extras.append({
-                        'book_name': extra.book.title if extra.book else 'No book selected',
-                        'pages': extra.pages or ''
-                    })
-                
-                # Get homework entries
-                homework_books = []
-                for hw in main_entry.homework_entries.all():
-                    homework_books.append({
-                        'book_name': hw.book.title if hw.book else 'No book selected',
-                        'pages': hw.pages or ''
-                    })
-                
-                daily_data.append({
-                    'subject_name': schedule.subject.name,
-                    'book_name': main_entry.book.title if main_entry.book else None,
-                    'pages': main_entry.pages,
-                    'notes': main_entry.notes,
-                    'important_notes': main_entry.important_notes,
-                    'extras': extras,
-                    'homework': homework_books,
-                    'has_entry': True
-                })
-            except DailyEntry.DoesNotExist:
-                # No entry for this subject
-                daily_data.append({
-                    'subject_name': schedule.subject.name,
-                    'book_name': None,
-                    'pages': None,
-                    'notes': None,
-                    'important_notes': None,
-                    'extras': [],
-                    'homework': [],
-                    'has_entry': False
-                })
-        
-        return daily_data
-    
-    def convert_html_to_reportlab(self, html_content):
-        """Convert HTML content to properly styled ReportLab flowable elements"""
-        if not html_content:
-            return []
-        
-        import re
-        
-        try:
-            from bs4 import BeautifulSoup
-        except ImportError:
-            # Fallback to basic text
-            return [Paragraph(html_content.replace('<', '&lt;').replace('>', '&gt;'), 
-                             ParagraphStyle('Normal', fontSize=10, fontName='Helvetica'))]
-        
-        # Add debug info to see what HTML we're processing
-        elements = [Paragraph(f"[DEBUG: Processing HTML: {html_content[:200]}...]", ParagraphStyle('Debug', fontSize=8, textColor=colors.red))]
-        
-        # For now, use a simple fallback to avoid paraparser errors
-        # Convert HTML to plain text with basic formatting
-        plain_text = self.html_to_plain_text(html_content)
-        if plain_text.strip():
-            elements.append(Paragraph(plain_text, ParagraphStyle('Normal', fontSize=10, fontName='Helvetica')))
-        
-        return elements
-    
-    def html_to_plain_text(self, html_content):
-        """Convert HTML to plain text with basic formatting markers"""
-        if not html_content:
-            return ""
-        
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(html_content, 'html.parser')
-        
-        # Remove script and style elements
-        for script in soup(["script", "style"]):
-            script.decompose()
-        
-        text_parts = []
-        
-        # Process each element
-        for element in soup.find_all(['p', 'div', 'table', 'ul', 'ol', 'blockquote', 'hr', 'pre', 'code']):
-            if element.name == 'table':
-                # Handle tables
-                rows = element.find_all('tr')
-                for row in rows:
-                    cells = row.find_all(['td', 'th'])
-                    row_text = []
-                    for cell in cells:
-                        cell_text = cell.get_text().strip()
-                        if cell_text:
-                            row_text.append(cell_text)
-                    if row_text:
-                        text_parts.append(" | ".join(row_text))
-            
-            elif element.name in ['ul', 'ol']:
-                # Handle lists
-                items = element.find_all('li')
-                for i, item in enumerate(items):
-                    item_text = item.get_text().strip()
-                    if item_text:
-                        if element.name == 'ol':
-                            text_parts.append(f"{i+1}. {item_text}")
-                        else:
-                            # Check for checkbox
-                            checkbox = item.find('input', {'type': 'checkbox'})
-                            if checkbox:
-                                checked = checkbox.has_attr('checked') or checkbox.get('checked') is not None
-                                prefix = "[x]" if checked else "[ ]"
-                                text_parts.append(f"{prefix} {item_text}")
-                            else:
-                                text_parts.append(f"• {item_text}")
-            
-            elif element.name == 'blockquote':
-                # Handle blockquotes
-                quote_text = element.get_text().strip()
-                if quote_text:
-                    text_parts.append(f"> {quote_text}")
-            
-            elif element.name == 'hr':
-                # Handle horizontal rules
-                text_parts.append("---")
-            
-            else:
-                # Handle other elements
-                element_text = element.get_text().strip()
-                if element_text:
-                    text_parts.append(element_text)
-        
-        # If no structured elements found, get all text
-        if not text_parts:
-            text_parts.append(soup.get_text().strip())
-        
-        return "\n".join(text_parts)
-
-    def create_reportlab_list(self, list_element):
-        """Create ReportLab list items from HTML list element with proper Tiptap support"""
-        elements = []
-        items = list_element.find_all('li')
-
-        for i, item in enumerate(items):
-            # Get text content while preserving inline formatting
-            # Use get_text() to avoid HTML tag issues, then apply formatting
-            text_content = item.get_text().strip()
-            text = self.format_inline_styles(text_content) if text_content else ""
-
-            if list_element.name == 'ol':
-                # Ordered list - use numbers
-                prefix = f"{i+1}."
-            else:
-                # Unordered list - check for checkbox
-                checkbox = item.find('input', {'type': 'checkbox'})
-                if checkbox:
-                    # Checklist item - check if checked
-                    checked = checkbox.has_attr('checked') or checkbox.get('checked') is not None
-                    prefix = "[x]" if checked else "[ ]"
-                else:
-                    # Regular bullet list
-                    prefix = "•"
-
-            # Create paragraph with proper indentation
-            elements.append(Paragraph(f"{prefix} {text}", 
-                ParagraphStyle('ListItem', fontSize=10, fontName='Helvetica', leftIndent=20)))
-
-        return elements
-
-    def create_reportlab_table(self, table_element):
-        """Create a ReportLab Table from BeautifulSoup table element"""
-        try:
-            rows = table_element.find_all('tr')
-            if not rows:
-                return None
-            
-            # Extract table data
-            table_data = []
-            for row in rows:
-                cells = row.find_all(['td', 'th'])
-                row_data = []
-                for cell in cells:
-                    # Use advanced formatting for cell content
-                    cell_content = self.format_cell_content_advanced(cell)
-                    row_data.append(cell_content)
-                table_data.append(row_data)
-            
-            # Create table with proper column widths (3 columns, 0.8 inches each = 2.4 inches total)
-            col_widths = [0.8*inch, 0.8*inch, 0.8*inch]
-            table = Table(table_data, colWidths=col_widths)
-            
-            # Apply table styling
-            table_style = TableStyle([
-                # Grid lines - subtle gray
-                ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#e0e0e0')),
-                # Header row styling
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f0f0f0')),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                # Cell padding
-                ('PADDING', (0, 0), (-1, -1), 8, 8),
-                # Text alignment
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ])
-            
-            table.setStyle(table_style)
-            return table
-            
-        except Exception as e:
-            print(f"Error creating table: {e}")
-            return None
-
-    def format_cell_content_advanced(self, cell):
-        """Advanced cell content formatting that preserves original order and converts <br> tags to proper lists"""
-        import re
-        content = []
-        
-        # Parse the cell HTML to preserve original order
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(str(cell), 'html.parser')
-        
-        # Debug: Print the cell HTML to see what we're working with
-        print(f"DEBUG: Cell HTML: {str(cell)}")
-        print(f"DEBUG: Cell text: {cell.get_text().strip()}")
-        
-        # First, look for explicit lists (ul, ol)
-        lists = soup.find_all(['ul', 'ol'])
-        for list_elem in lists:
-            items = list_elem.find_all('li')
-            for j, item in enumerate(items):
-                text = self.format_inline_styles(item.get_text().strip())
-                if list_elem.name == 'ol':
-                    content.append(f"{j+1}. {text}")
-                else:
-                    # Check if it's a checklist - look for checkbox input
-                    checkbox = item.find('input', type='checkbox')
-                    if checkbox:
-                        checked = checkbox.has_attr('checked') or checkbox.get('checked') is not None
-                        prefix = "[x]" if checked else "[ ]"
-                        content.append(f"{prefix} {text}")
-                    else:
-                        content.append(f"• {text}")
-        
-        # Look for checklist items (div with class="checklist-item")
-        checklist_items = soup.find_all('div', class_='checklist-item')
-        for checklist_item in checklist_items:
-            text_content = checklist_item.get_text().strip()
-            if text_content:
-                content.append(f"[ ] {text_content}")
-        
-        # Process other content if no lists found
-        if not content:
-            # Look for paragraphs and other block elements
-            paragraphs = soup.find_all(['p', 'div'])
-            for para in paragraphs:
-                # Skip if it's already a checklist item (already processed above)
-                if para.get('class') == ['checklist-item']:
-                    continue
+                    if entry['book_name'] or entry['extras']:
+                        html_parts.append('<div class="section">')
+                        html_parts.append('<div class="section-title">Ресурси:</div>')
+                        
+                        # Main book
+                        if entry['book_name']:
+                            resource_text = f"→ {entry['book_name']}"
+                            if entry['pages']:
+                                resource_text += f" стр. {entry['pages']}"
+                            html_parts.append(f'<p>{resource_text}</p>')
+                        
+                        # Extra books
+                        for extra in entry['extras']:
+                            extra_text = f"→ {extra['book_name']}"
+                            if extra['pages']:
+                                extra_text += f" стр. {extra['pages']}"
+                            html_parts.append(f'<p>{extra_text}</p>')
+                        html_parts.append('</div>')
                     
-                para_text = para.get_text().strip()
-                if para_text:
-                    # Check if it looks like a numbered item
-                    if re.match(r'^\d+\.?\s*', para_text):
-                        content.append(para_text)
-                    # Check if it looks like a bullet item
-                    elif para_text.startswith('•'):
-                        content.append(para_text)
-                    # Check if it contains a checkbox (input type="checkbox")
-                    elif para.find('input', type='checkbox'):
-                        clean_text = re.sub(r'^\[ \]\s*', '', para_text)  # Remove existing square if any
-                        content.append(f"[ ] {clean_text}")
-                    else:
-                        # Regular text
-                        content.append(para_text)
+                    # Notes
+                    if entry['notes']:
+                        html_parts.append('<div class="section">')
+                        html_parts.append('<div class="section-title">Записки:</div>')
+                        html_parts.append(entry['notes'])
+                        html_parts.append('</div>')
+                    
+                    html_parts.append('</div>')  # End left column
+                    
+                    # Right column: Important Notes and Homework
+                    html_parts.append('<div class="right-column">')
+                    
+                    # Important Notes
+                    if entry.get('important_notes'):
+                        html_parts.append('<div class="section">')
+                        html_parts.append('<div class="section-title">Важно:</div>')
+                        html_parts.append(entry['important_notes'])
+                        html_parts.append('</div>')
+                    
+                    # Homework
+                    if entry['homework']:
+                        html_parts.append('<div class="section">')
+                        html_parts.append('<div class="section-title">Домашно:</div>')
+                        for hw in entry['homework']:
+                            hw_text = f"→ {hw['book_name']}"
+                            if hw['pages']:
+                                hw_text += f" стр. {hw['pages']}"
+                            html_parts.append(f'<p>{hw_text}</p>')
+                        html_parts.append('</div>')
+                    
+                    html_parts.append('</div>')  # End right column
+                    html_parts.append('</div>')  # End subject-content
         
-        # If still no content, use basic text
-        if not content:
-            content.append(cell.get_text().strip())
-        
-        # For ReportLab, we need to preserve line breaks as \n characters
-        result = '\n'.join(content)
-        
-        # Add debug info to the PDF content itself so we can see it
-        debug_info = f"[DEBUG: Cell HTML: {str(cell)[:100]}...]\n[DEBUG: Final content: {result}]\n"
-        
-        return debug_info + result
-
-    def process_blockquote_content(self, blockquote_element):
-        """Process blockquote content to preserve internal structure like lists and checklists"""
-        import re
-        elements = []
-        
-        # Define blockquote styles
-        blockquote_style = ParagraphStyle(
-            'Blockquote',
-            fontSize=9,
-            fontName='Courier',
-            textColor=colors.black,
-            backColor=colors.HexColor('#f8f9fa'),
-            borderPadding=8,
-            borderColor=colors.HexColor('#e0e0e0'),
-            borderWidth=1,
-            leftIndent=0,
-            rightIndent=0.5*inch
-        )
-        
-        # Process each child element in the blockquote
-        for child in blockquote_element.children:
-            if hasattr(child, 'name'):
-                if child.name in ['ul', 'ol']:
-                    # Process lists within blockquote
-                    list_elements = self.create_reportlab_list(child)
-                    for list_elem in list_elements:
-                        # Wrap list elements with blockquote styling
-                        if hasattr(list_elem, 'style'):
-                            # Apply blockquote styling to list items
-                            list_elem.style.backColor = colors.HexColor('#f8f9fa')
-                            list_elem.style.borderPadding = 8
-                            list_elem.style.borderColor = colors.HexColor('#e0e0e0')
-                            list_elem.style.borderWidth = 1
-                            list_elem.style.rightIndent = 0.5*inch
-                        elements.append(list_elem)
-                elif child.name == 'div' and child.get('class') == ['checklist-item']:
-                    # Process checklist items within blockquote
-                    text_content = child.get_text().strip()
-                    if text_content:
-                        elements.append(Paragraph(f'<i>[ ] {text_content}</i>', blockquote_style))
-                elif child.name in ['p', 'div']:
-                    # Process paragraphs and divs within blockquote
-                    para_text = child.get_text().strip()
-                    if para_text:
-                        # Check if it contains checklists or lists
-                        if child.find('input', type='checkbox'):
-                            clean_text = re.sub(r'^\s*\[\s*\]\s*', '', para_text)
-                            elements.append(Paragraph(f'<i>[ ] {clean_text}</i>', blockquote_style))
-                        else:
-                            elements.append(Paragraph(f'<i>{para_text}</i>', blockquote_style))
-                else:
-                    # Process other elements
-                    text_content = child.get_text().strip()
-                    if text_content:
-                        elements.append(Paragraph(f'<i>{text_content}</i>', blockquote_style))
-            else:
-                # Text node
-                text_content = str(child).strip()
-                if text_content:
-                    elements.append(Paragraph(f'<i>{text_content}</i>', blockquote_style))
-        
-        return elements
-
-    def format_inline_styles(self, text):
-        """Format inline styles like bold, italic, underline with proper HTML cleaning"""
-        import re
-        
-        # First, clean up any malformed HTML by removing unclosed tags
-        # Remove any tags that don't have proper closing tags
-        text = re.sub(r'<([^>]*?)(?<!/)>', lambda m: m.group(0) if m.group(1).strip() else '', text)
-        
-        # Handle bold text - ensure proper tag matching and handle unclosed tags
-        text = re.sub(r'<b>(.*?)</b>', r'<b>\1</b>', text)
-        text = re.sub(r'<strong>(.*?)</strong>', r'<b>\1</b>', text)
-        text = re.sub(r'<b>([^<]*)', r'<b>\1</b>', text)  # Handle unclosed tags
-        text = re.sub(r'<strong>([^<]*)', r'<b>\1</b>', text)  # Handle unclosed tags
-        
-        # Handle italic text - ensure proper tag matching and handle unclosed tags
-        text = re.sub(r'<i>(.*?)</i>', r'<i>\1</i>', text)
-        text = re.sub(r'<em>(.*?)</em>', r'<i>\1</i>', text)
-        text = re.sub(r'<i>([^<]*)', r'<i>\1</i>', text)  # Handle unclosed tags
-        text = re.sub(r'<em>([^<]*)', r'<i>\1</i>', text)  # Handle unclosed tags
-        
-        # Handle underline - ensure proper tag matching and handle unclosed tags
-        text = re.sub(r'<u>(.*?)</u>', r'<u>\1</u>', text)
-        text = re.sub(r'<u>([^<]*)', r'<u>\1</u>', text)  # Handle unclosed tags
-        
-        # Handle strike-through - ensure proper tag matching and handle unclosed tags
-        text = re.sub(r'<s>(.*?)</s>', r'<s>\1</s>', text)
-        text = re.sub(r'<strike>(.*?)</strike>', r'<s>\1</s>', text)
-        text = re.sub(r'<s>([^<]*)', r'<s>\1</s>', text)  # Handle unclosed tags
-        text = re.sub(r'<strike>([^<]*)', r'<s>\1</s>', text)  # Handle unclosed tags
-        
-        # Remove any remaining unclosed HTML tags to prevent paraparser errors
-        text = re.sub(r'<[^>]*$', '', text)  # Remove tags at end of string
-        text = re.sub(r'^[^<]*>', '', text)  # Remove orphaned closing tags at start
-        
-        return text
+        return ''.join(html_parts)
 
 
-class NoAccessView(View):
-    def get(self, request):
-        return render(request, 'no_access.html')
-
-
-class UsersView(LoginRequiredMixin, View):
-    def get(self, request):
-        # Only admin users can access this page
-        if not request.user.is_admin:
-            return redirect('no_access')
-        
-        # Get all users with additional data
-        users = User.objects.all().order_by('username')
-        
-        # Add unique days count for each user
-        users_with_data = []
-        for user in users:
-            unique_days = user.dailyentry_set.values_list('date', flat=True).distinct().count()
-            user.unique_days_count = unique_days
-            users_with_data.append(user)
-        
-        context = {
-            'users': users_with_data,
-        }
-        return render(request, 'users.html', context)
-
-
-# API Views for Auto-Save Today Page Data
 @method_decorator(csrf_exempt, name='dispatch')
 class TodayAutoSaveAPIView(View):
     def post(self, request):
@@ -2895,125 +2516,121 @@ class TodayAutoSaveAPIView(View):
             # Process homework entries
             homework_entries = []
             for i in range(10):
-                homework_book = data.get(f'homework_book_{i}')
-                homework_pages = data.get(f'homework_pages_{i}')
-                if homework_book or homework_pages:
+                hw_book_id = data.get(f'homework_book_{i}')
+                hw_pages = data.get(f'homework_pages_{i}')
+                if hw_book_id:
                     homework_entries.append({
-                        'book_id': homework_book,
-                        'pages': homework_pages
+                        'book_id': hw_book_id,
+                        'pages': hw_pages or ''
                     })
             
-            # Process extra entries
+            # Process extra book entries
             extra_entries = []
-            for i in range(5):
-                extra_book = data.get(f'extra_book_{i}')
+            for i in range(10):
+                extra_book_id = data.get(f'extra_book_{i}')
                 extra_pages = data.get(f'extra_pages_{i}')
-                if extra_book or extra_pages:
+                if extra_book_id:
                     extra_entries.append({
-                        'book_id': extra_book,
-                        'pages': extra_pages
+                        'book_id': extra_book_id,
+                        'pages': extra_pages or ''
                     })
             
-            # Save data using existing logic
-            with transaction.atomic():
-                # Get subject
+            # Get subject
+            try:
+                subject = Subject.objects.get(id=subject_id, created_by=target_user)
+            except Subject.DoesNotExist:
+                return JsonResponse({'error': 'Subject not found'}, status=404)
+            
+            # Get book if book_id is provided
+            book = None
+            if book_id:
                 try:
-                    subject = Subject.objects.get(id=subject_id, created_by=target_user)
-                except Subject.DoesNotExist:
-                    return JsonResponse({'error': 'Subject not found'}, status=404)
+                    book = Book.objects.get(id=book_id, created_by=target_user)
+                except Book.DoesNotExist:
+                    pass  # book will remain None
+            
+            # Create or update daily entry
+            daily_entry, created = DailyEntry.objects.get_or_create(
+                subject=subject,
+                date=today_date,
+                created_by=target_user,
+                defaults={
+                    'notes': notes, 
+                    'important_notes': important_notes,
+                    'book': book,
+                    'pages': pages
+                }
+            )
+            
+            if not created:
+                daily_entry.notes = notes
+                daily_entry.important_notes = important_notes
+                daily_entry.book = book
+                daily_entry.pages = pages
+                daily_entry.save()
+            
+            # Handle extras
+            if daily_entry:
+                # Clear existing extras
+                daily_entry.extras.all().delete()
                 
-                # Get book
-                book = None
-                if book_id:
+                # Create new extras
+                for extra_data in extra_entries:
                     try:
-                        book = Book.objects.get(id=book_id)
+                        extra_book = Book.objects.get(id=extra_data['book_id'], created_by=target_user)
+                        DailyExtra.objects.create(
+                            daily_entry=daily_entry,
+                            book=extra_book,
+                            pages=extra_data['pages']
+                        )
                     except Book.DoesNotExist:
-                        pass
-                
-                # Check if there's any data to save
-                has_homework_data = any(entry.get('book_id') or entry.get('pages') for entry in homework_entries)
-                has_extra_data = any(entry.get('book_id') or entry.get('pages') for entry in extra_entries)
-                has_data = any([book_id, pages, notes, important_notes, has_homework_data, has_extra_data])
-                
-                if has_data:
-                    # Get or create main entry
-                    main_entry, created = DailyEntry.objects.get_or_create(
-                        date=today_date,
-                        subject=subject,
-                        defaults={
-                            'book': book,
-                            'pages': pages if pages else None,
-                            'notes': notes if notes else None,
-                            'important_notes': important_notes if important_notes else None,
-                            'created_by': target_user
-                        }
-                    )
-                    
-                    # Update if not created
-                    if not created:
-                        main_entry.book = book
-                        main_entry.pages = pages if pages else None
-                        main_entry.notes = notes if notes else None
-                        main_entry.important_notes = important_notes if important_notes else None
-                        main_entry.save()
-                    
-                    # Clear existing homework entries
-                    main_entry.homework_entries.all().delete()
-                    
-                    # Save homework entries
-                    for hw_entry in homework_entries:
-                        if hw_entry['book_id'] or hw_entry['pages']:
-                            homework_book = None
-                            if hw_entry['book_id']:
-                                try:
-                                    homework_book = Book.objects.get(id=hw_entry['book_id'])
-                                except Book.DoesNotExist:
-                                    pass
-                            
-                            HomeworkEntry.objects.create(
-                                daily_entry=main_entry,
-                                book=homework_book,
-                                pages=hw_entry['pages'] if hw_entry['pages'] else None,
-                                created_by=target_user
-                            )
-                    
-                    # Clear existing extra entries
-                    main_entry.extras.all().delete()
-                    
-                    # Save extra entries
-                    for extra_entry in extra_entries:
-                        if extra_entry['book_id'] or extra_entry['pages']:
-                            extra_book = None
-                            if extra_entry['book_id']:
-                                try:
-                                    extra_book = Book.objects.get(id=extra_entry['book_id'])
-                                except Book.DoesNotExist:
-                                    pass
-                            
-                            DailyExtra.objects.create(
-                                daily_entry=main_entry,
-                                book=extra_book,
-                                pages=extra_entry['pages'] if extra_entry['pages'] else None,
-                                created_by=target_user
-                            )
-                else:
-                    # No data - delete entry if it exists
-                    DailyEntry.objects.filter(
-                        date=today_date,
-                        subject=subject,
-                        created_by=target_user
-                    ).delete()
+                        pass  # Skip invalid book IDs
             
-            return JsonResponse({'success': True, 'message': 'Data saved successfully'})
+            # Handle homework
+            if daily_entry:
+                # Clear existing homework
+                daily_entry.homework_entries.all().delete()
+                
+                # Create new homework entries
+                for hw_data in homework_entries:
+                    try:
+                        hw_book = Book.objects.get(id=hw_data['book_id'], created_by=target_user)
+                        HomeworkEntry.objects.create(
+                            daily_entry=daily_entry,
+                            book=hw_book,
+                            pages=hw_data['pages']
+                        )
+                    except Book.DoesNotExist:
+                        pass  # Skip invalid book IDs
             
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+            return JsonResponse({'success': True})
+            
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
 
 
-# API Views for Subjects and Books Management
-@method_decorator(csrf_exempt, name='dispatch')
+class UsersView(LoginRequiredMixin, View):
+    def get(self, request):
+        # Only admin users can access this page
+        if not request.user.is_admin:
+            return redirect('no_access')
+        
+        # Get all users with additional data
+        users = User.objects.all().order_by('username')
+        
+        # Add unique days count for each user
+        users_with_data = []
+        for user in users:
+            unique_days = user.dailyentry_set.values_list('date', flat=True).distinct().count()
+            user.unique_days_count = unique_days
+            users_with_data.append(user)
+        
+        context = {
+            'users': users_with_data,
+        }
+        return render(request, 'users.html', context)
+
+
 class SubjectsBooksAPIView(View):
     def get(self, request):
         """Get all subjects and their books for the current user"""
@@ -3042,159 +2659,7 @@ class SubjectsBooksAPIView(View):
         
         return JsonResponse({'subjects': data})
     
-    def post(self, request):
-        """Create new subject or book"""
-        if not request.user.is_authenticated:
-            return JsonResponse({'error': 'Authentication required'}, status=401)
-        
-        # Check if admin is managing another user's data
-        target_user = request.user  # Default to current user
-        if request.user.is_admin() and 'target_user_id' in request.session:
-            try:
-                target_user = User.objects.get(id=request.session['target_user_id'])
-            except User.DoesNotExist:
-                pass  # Fall back to current user
-        
-        try:
-            data = json.loads(request.body)
-            action = data.get('action')
-            
-            if action == 'create_subject':
-                name = data.get('name', '').strip()
-                if not name:
-                    return JsonResponse({'error': 'Subject name is required'}, status=400)
-                
-                subject = Subject.objects.create(
-                    name=name,
-                    created_by=target_user
-                )
-                return JsonResponse({
-                    'success': True,
-                    'subject': {'id': subject.id, 'name': subject.name, 'books': []}
-                })
-            
-            elif action == 'create_book':
-                subject_id = data.get('subject_id')
-                title = data.get('title', '').strip()
-                
-                if not subject_id or not title:
-                    return JsonResponse({'error': 'Subject ID and book title are required'}, status=400)
-                
-                try:
-                    subject = get_object_or_404(Subject, id=subject_id)
-                    # Check if user can edit this subject
-                    if not (request.user.is_admin() or subject.created_by == target_user):
-                        return JsonResponse({'error': 'Permission denied'}, status=403)
-                    
-                    book = Book.objects.create(
-                        title=title,
-                        subject=subject,
-                        created_by=target_user
-                    )
-                    return JsonResponse({
-                        'success': True,
-                        'book': {'id': book.id, 'title': book.title}
-                    })
-                except Exception as e:
-                    return JsonResponse({'error': f'Error creating book: {str(e)}'}, status=500)
-            
-            else:
-                return JsonResponse({'error': 'Invalid action'}, status=400)
-                
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON'}, status=400)
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
-    
-    def put(self, request):
-        """Update subject or book"""
-        if not request.user.is_authenticated:
-            return JsonResponse({'error': 'Authentication required'}, status=401)
-        
-        try:
-            data = json.loads(request.body)
-            action = data.get('action')
-            
-            if action == 'rename_subject':
-                subject_id = data.get('id')
-                new_name = data.get('name', '').strip()
-                
-                if not subject_id or not new_name:
-                    return JsonResponse({'error': 'Subject ID and new name are required'}, status=400)
-                
-                subject = get_object_or_404(Subject, id=subject_id)
-                # Check if user can edit this subject
-                if not (request.user.is_admin() or subject.created_by == request.user):
-                    return JsonResponse({'error': 'Permission denied'}, status=403)
-                
-                subject.name = new_name
-                subject.save()
-                return JsonResponse({'success': True, 'name': subject.name})
-            
-            elif action == 'rename_book':
-                book_id = data.get('id')
-                new_title = data.get('title', '').strip()
-                
-                if not book_id or not new_title:
-                    return JsonResponse({'error': 'Book ID and new title are required'}, status=400)
-                
-                book = get_object_or_404(Book, id=book_id)
-                # Check if user can edit this book
-                if not (request.user.is_admin() or book.created_by == request.user):
-                    return JsonResponse({'error': 'Permission denied'}, status=403)
-                
-                book.title = new_title
-                book.save()
-                return JsonResponse({'success': True, 'title': book.title})
-            
-            else:
-                return JsonResponse({'error': 'Invalid action'}, status=400)
-                
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON'}, status=400)
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
-    
-    def delete(self, request):
-        """Delete subject or book"""
-        if not request.user.is_authenticated:
-            return JsonResponse({'error': 'Authentication required'}, status=401)
-        
-        try:
-            data = json.loads(request.body)
-            action = data.get('action')
-            
-            if action == 'delete_subject':
-                subject_id = data.get('id')
-                if not subject_id:
-                    return JsonResponse({'error': 'Subject ID is required'}, status=400)
-                
-                subject = get_object_or_404(Subject, id=subject_id)
-                # Check if user can delete this subject
-                if not (request.user.is_admin() or subject.created_by == request.user):
-                    return JsonResponse({'error': 'Permission denied'}, status=403)
-                
-                # Delete subject (this will cascade delete books due to foreign key)
-                subject.delete()
-                return JsonResponse({'success': True})
-            
-            elif action == 'delete_book':
-                book_id = data.get('id')
-                if not book_id:
-                    return JsonResponse({'error': 'Book ID is required'}, status=400)
-                
-                book = get_object_or_404(Book, id=book_id)
-                # Check if user can delete this book
-                if not (request.user.is_admin() or book.created_by == request.user):
-                    return JsonResponse({'error': 'Permission denied'}, status=403)
-                
-                book.delete()
-                return JsonResponse({'success': True})
-            
-            else:
-                return JsonResponse({'error': 'Invalid action'}, status=400)
-                
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON'}, status=400)
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+
+class NoAccessView(View):
+    def get(self, request):
+        return render(request, 'no_access.html')

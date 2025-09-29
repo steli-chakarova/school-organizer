@@ -1,1 +1,1 @@
-web: npm install --omit=dev && playwright install chromium && python3 setup_db.py && python3 manage.py collectstatic --noinput && python3 railway_load_data.py && DJANGO_SETTINGS_MODULE=school_organizer.settings_production gunicorn school_organizer.wsgi:application --bind 0.0.0.0:$PORT --workers 3
+web: python3 -m playwright install chromium && python3 setup_db.py && python3 manage.py collectstatic --noinput && python3 railway_load_data.py && DJANGO_SETTINGS_MODULE=school_organizer.settings_production gunicorn school_organizer.wsgi:application --bind 0.0.0.0:$PORT --workers 3

@@ -1167,6 +1167,112 @@ button:hover {
     gap: 2rem;
 }
 
+/* Rich text content styling for history page */
+.history-page .rich-text-content {
+    line-height: 1.6;
+    word-wrap: break-word;
+}
+
+.history-page .rich-text-content p {
+    margin: 0.5rem 0;
+}
+
+.history-page .rich-text-content h1,
+.history-page .rich-text-content h2,
+.history-page .rich-text-content h3,
+.history-page .rich-text-content h4,
+.history-page .rich-text-content h5,
+.history-page .rich-text-content h6 {
+    margin: 1rem 0 0.5rem 0;
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+.history-page .rich-text-content h1 {
+    font-size: 1.4em;
+}
+
+.history-page .rich-text-content h2 {
+    font-size: 1.3em;
+}
+
+.history-page .rich-text-content h3 {
+    font-size: 1.2em;
+}
+
+.history-page .rich-text-content ul,
+.history-page .rich-text-content ol {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+}
+
+.history-page .rich-text-content li {
+    margin: 0.25rem 0;
+}
+
+.history-page .rich-text-content table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0;
+    border: 1px solid var(--border-color);
+}
+
+.history-page .rich-text-content table th,
+.history-page .rich-text-content table td {
+    border: 1px solid var(--border-color);
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.history-page .rich-text-content table th {
+    background-color: var(--light-bg);
+    font-weight: bold;
+}
+
+.history-page .rich-text-content blockquote {
+    margin: 1rem 0;
+    padding: 0.5rem 0 0.5rem 1rem;
+    background-color: var(--light-bg);
+    font-style: italic;
+}
+
+.history-page .rich-text-content strong,
+.history-page .rich-text-content b {
+    font-weight: bold;
+}
+
+.history-page .rich-text-content em,
+.history-page .rich-text-content i {
+    font-style: italic;
+}
+
+.history-page .rich-text-content u {
+    text-decoration: underline;
+}
+
+.history-page .rich-text-content s,
+.history-page .rich-text-content strike {
+    text-decoration: line-through;
+}
+
+/* Horizontal rules in history page - make them lighter */
+.history-page .rich-text-content hr {
+    border: none;
+    border-top: 1px solid #e0e0e0;
+    margin: 15px 0;
+    background: none;
+    height: 1px;
+}
+
+/* Blockquotes in history page - no border */
+.history-page .rich-text-content blockquote {
+    margin: 10px 0;
+    padding: 10px 20px;
+    background: #f8f9fa;
+    font-style: italic;
+}
+
 /* Important notes section - Today page only */
 .today-page .important-notes-section {
     padding: 1.5rem;
