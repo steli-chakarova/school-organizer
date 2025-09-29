@@ -2,24 +2,29 @@
 import threading
 from playwright.sync_api import sync_playwright
 
-# Use thread-local storage to avoid conflicts with Django's async handling
-_thread_local = threading.local()
+# Global browser instance for better performance
+_global_lock = threading.Lock()
+_global_browser = None
+_global_playwright = None
 
 def get_browser(headless=True):
-    """Get a browser instance for the current thread"""
-    if not hasattr(_thread_local, 'browser') or _thread_local.browser is None:
-        _thread_local.playwright = sync_playwright().start()
-        _thread_local.browser = _thread_local.playwright.chromium.launch(
-            headless=headless, 
-            args=[
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-                "--disable-web-security",
-                "--disable-features=VizDisplayCompositor"
-            ]
-        )
-    return _thread_local.browser
+    """Get a browser instance - use global singleton for better performance"""
+    global _global_browser, _global_playwright
+    
+    with _global_lock:
+        if _global_browser is None:
+            _global_playwright = sync_playwright().start()
+            _global_browser = _global_playwright.chromium.launch(
+                headless=headless, 
+                args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    "--disable-web-security",
+                    "--disable-features=VizDisplayCompositor"
+                ]
+            )
+    return _global_browser
 
 def html_to_pdf_bytes(html: str, base_url: str = None) -> bytes:
     """Generate PDF bytes from HTML content"""
@@ -28,13 +33,26 @@ def html_to_pdf_bytes(html: str, base_url: str = None) -> bytes:
     
     try:
         # Set content directly - no external resources needed for our use case
-        page.set_content(html, wait_until="load")
+        page.set_content(html, wait_until="domcontentloaded")  # Faster than "load"
         
         pdf = page.pdf(
             format="A4",
             print_background=True,
             margin={"top": "10mm", "right": "5mm", "bottom": "15mm", "left": "5mm"},
+            prefer_css_page_size=True,  # Faster rendering
         )
         return pdf
     finally:
         page.close()
+
+def cleanup_browser():
+    """Clean up browser resources"""
+    global _global_browser, _global_playwright
+    
+    with _global_lock:
+        if _global_browser:
+            _global_browser.close()
+            _global_browser = None
+        if _global_playwright:
+            _global_playwright.stop()
+            _global_playwright = None
