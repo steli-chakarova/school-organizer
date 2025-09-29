@@ -19,23 +19,28 @@ def get_browser(headless=True):
                 print("Launching browser...")
                 _global_browser = _global_playwright.chromium.launch(
                     headless=headless, 
-                    args=[
-                        "--no-sandbox",
-                        "--disable-dev-shm-usage",
-                        "--disable-gpu",
-                        "--disable-web-security",
-                        "--disable-features=VizDisplayCompositor",
-                        "--single-process",
-                        "--no-zygote",
-                        "--disable-extensions",
-                        "--disable-plugins",
-                        "--disable-default-apps",
-                        "--disable-sync",
-                        "--disable-translate",
-                        "--hide-scrollbars",
-                        "--mute-audio",
-                        "--no-first-run"
-                    ]
+                args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    "--disable-web-security",
+                    "--disable-features=VizDisplayCompositor",
+                    "--single-process",
+                    "--no-zygote",
+                    "--disable-extensions",
+                    "--disable-plugins",
+                    "--disable-images",  # Skip loading images for faster rendering
+                    "--disable-javascript",  # Skip JS execution for faster rendering
+                    "--disable-default-apps",
+                    "--disable-sync",
+                    "--disable-translate",
+                    "--hide-scrollbars",
+                    "--mute-audio",
+                    "--no-first-run",
+                    "--disable-background-timer-throttling",
+                    "--disable-backgrounding-occluded-windows",
+                    "--disable-renderer-backgrounding"
+                ]
                 )
                 print("Browser launched successfully!")
             except Exception as e:
@@ -60,16 +65,19 @@ def html_to_pdf_bytes(html: str, base_url: str = None) -> bytes:
     try:
         # Set content directly - no external resources needed for our use case
         content_start = time.time()
-        page.set_content(html, wait_until="domcontentloaded", timeout=5000)  # Faster - just wait for DOM
+        page.set_content(html, wait_until="commit", timeout=3000)  # Fastest - just wait for initial commit
         print(f"Content set in {time.time() - content_start:.2f}s")
+        
+        # Small delay to ensure content is fully rendered
+        import time
+        time.sleep(0.5)
         
         pdf_start = time.time()
         pdf = page.pdf(
             format="A4",
             print_background=True,
             margin={"top": "10mm", "right": "5mm", "bottom": "15mm", "left": "5mm"},
-            display_header_footer=False,
-            timeout=15000  # 15 second timeout for PDF generation
+            timeout=8000  # 8 second timeout for PDF generation
         )
         print(f"PDF generated in {time.time() - pdf_start:.2f}s")
         print(f"Total time: {time.time() - start_time:.2f}s")
