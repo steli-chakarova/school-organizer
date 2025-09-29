@@ -76,3 +76,6 @@ LOGGING = {
 
 # Ensure custom user model is set
 AUTH_USER_MODEL = 'organizer.User'
+
+# Force Django to use sync mode to prevent SynchronousOnlyOperation errors
+DJANGO_ALLOW_ASYNC_UNSAFE = True
