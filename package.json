@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "description": "School Organizer Django Application",
   "scripts": {
-    "postinstall": "playwright install chromium"
+    "postinstall": "playwright install --with-deps chromium",
+    "build": "playwright install --with-deps chromium"
   },
   "dependencies": {
-    "@playwright/test": "^1.55.0"
+    "playwright": "1.55.0"
   },
   "engines": {
     "node": ">=18.0.0"
