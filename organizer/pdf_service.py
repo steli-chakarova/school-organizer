@@ -13,7 +13,9 @@ def get_browser(headless=True):
     
     with _global_lock:
         if _global_browser is None:
+            print("Initializing Playwright...")
             _global_playwright = sync_playwright().start()
+            print("Launching browser...")
             _global_browser = _global_playwright.chromium.launch(
                 headless=headless, 
                 args=[
@@ -21,9 +23,17 @@ def get_browser(headless=True):
                     "--disable-dev-shm-usage",
                     "--disable-gpu",
                     "--disable-web-security",
-                    "--disable-features=VizDisplayCompositor"
+                    "--disable-features=VizDisplayCompositor",
+                    "--disable-background-timer-throttling",
+                    "--disable-backgrounding-occluded-windows",
+                    "--disable-renderer-backgrounding",
+                    "--disable-features=TranslateUI",
+                    "--disable-ipc-flooding-protection",
+                    "--single-process",  # Faster startup
+                    "--no-zygote"  # Skip zygote process
                 ]
             )
+            print("Browser launched successfully!")
     return _global_browser
 
 def html_to_pdf_bytes(html: str, base_url: str = None) -> bytes:
