@@ -1162,17 +1162,36 @@ class ExportJPEGView(View):
         
         # Render the print template
         html = render_to_string("print/tiptap_pdf.html", {"doc_html": html_content})
-        base_url = request.build_absolute_uri("/")
         
-        # Generate PDF using Playwright
-        from .pdf_service import html_to_pdf_bytes
-        pdf_bytes = html_to_pdf_bytes(html, base_url=base_url)
-        
-        # Create response
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="school_organizer_{selected_date.strftime("%d_%m_%Y")}.pdf"'
-        
-        return response
+        try:
+            # Use Playwright to generate JPEG (screenshot)
+            browser = get_browser()
+            page = browser.new_page()
+            
+            try:
+                # Set content directly - no external resources needed for our use case
+                page.set_content(html, wait_until="load")
+                
+                # Take screenshot as JPEG
+                jpeg_bytes = page.screenshot(
+                    type='jpeg',
+                    quality=95,
+                    full_page=True
+                )
+                
+                # Create JPEG response
+                response = HttpResponse(jpeg_bytes, content_type='image/jpeg')
+                response['Content-Disposition'] = f'attachment; filename="school_organizer_{selected_date.strftime("%d_%m_%Y")}.jpg"'
+                
+                return response
+                
+            finally:
+                page.close()
+                
+        except Exception as e:
+            # Fallback: return error message
+            messages.error(request, f"Error generating JPEG: {str(e)}")
+            return redirect("history")
     
     def build_html_content(self, daily_data, selected_date):
         """Build HTML content from daily data for Playwright PDF export"""
@@ -1316,7 +1335,6 @@ class ExportJPEGView(View):
 class ExportTemplatePDFView(View):
     def get(self, request, date=None):
         from django.template.loader import render_to_string
-        from .pdf_service import get_browser
         
         # Parse the date
         if date:
@@ -1335,37 +1353,18 @@ class ExportTemplatePDFView(View):
         html_content = self.build_html_content(daily_data, selected_date)
         
         # Render the template
-        doc_html = render_to_string('print/tiptap_pdf.html', {'doc_html': html_content})
+        html = render_to_string('print/tiptap_pdf.html', {'doc_html': html_content})
+        base_url = request.build_absolute_uri("/")
         
-        try:
-            # Use Playwright to generate JPEG
-            browser = get_browser()
-            page = browser.new_page()
-            
-            try:
-                # Set content directly - no external resources needed for our use case
-                page.set_content(doc_html, wait_until="load")
-                
-                # Take screenshot as JPEG
-                jpeg_bytes = page.screenshot(
-                    type='jpeg',
-                    quality=95,
-                    full_page=True
-                )
-                
-                # Create JPEG response
-                response = HttpResponse(jpeg_bytes, content_type='image/jpeg')
-                response['Content-Disposition'] = f'attachment; filename="school_organizer_{selected_date.strftime("%d_%m_%Y")}.jpg"'
-                
-                return response
-                
-            finally:
-                page.close()
-                
-        except Exception as e:
-            # Fallback: return error message
-            messages.error(request, f"Error generating JPEG: {str(e)}")
-            return redirect("history")
+        # Generate PDF using Playwright
+        from .pdf_service import html_to_pdf_bytes
+        pdf_bytes = html_to_pdf_bytes(html, base_url=base_url)
+        
+        # Create PDF response
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="school_organizer_{selected_date.strftime("%d_%m_%Y")}.pdf"'
+        
+        return response
     
     def get_daily_data(self, selected_date, request):
         """Helper method to get daily data for JPEG export"""

@@ -76,8 +76,3 @@ LOGGING = {
 
 # Ensure custom user model is set
 AUTH_USER_MODEL = 'organizer.User'
-
-# Debug: Print ALLOWED_HOSTS to confirm it's set
-print(f"DEBUG: ALLOWED_HOSTS = {ALLOWED_HOSTS}")
-print(f"DEBUG: ALLOWED_HOSTS type = {type(ALLOWED_HOSTS)}")
-print(f"DEBUG: ALLOWED_HOSTS env var = {os.environ.get('ALLOWED_HOSTS', 'NOT_SET')}")
