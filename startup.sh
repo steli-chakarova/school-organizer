@@ -14,6 +14,15 @@ python3 manage.py collectstatic --noinput
 echo "Loading data..."
 python3 railway_load_data.py
 
+# Pre-initialize browser for faster PDF generation
+echo "Pre-initializing browser..."
+python3 -c "
+from organizer.pdf_service import get_browser
+print('Initializing browser...')
+browser = get_browser()
+print('Browser initialized successfully!')
+"
+
 # Start the application
 echo "Starting Django application..."
 export DJANGO_SETTINGS_MODULE=school_organizer.settings_production

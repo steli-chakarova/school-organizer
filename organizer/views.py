@@ -1289,7 +1289,7 @@ class ExportJPEGView(View):
             
             try:
                 # Set content directly - no external resources needed for our use case
-                page.set_content(html, wait_until="load")
+                page.set_content(html, wait_until="domcontentloaded")
                 
                 # Take screenshot as JPEG
                 jpeg_bytes = page.screenshot(
