@@ -2,19 +2,6 @@
 
 echo "Starting School Organizer..."
 
-# Check if Playwright browsers are installed
-if [ ! -d "/root/.cache/ms-playwright/chromium_headless_shell" ]; then
-    echo "Installing Playwright browsers (first time setup)..."
-    python3 -m playwright install chromium
-    python3 -m playwright install-deps
-else
-    echo "Playwright browsers already installed, skipping..."
-fi
-
-# Always ensure system dependencies are installed (in case they're missing)
-echo "Ensuring system dependencies are installed..."
-python3 -m playwright install-deps
-
 # Setup database
 echo "Setting up database..."
 python3 setup_db.py
