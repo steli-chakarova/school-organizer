@@ -19,7 +19,7 @@ playwright install chromium
 
 # Set up Django
 echo "⚙️ Setting up Django..."
-python manage.py collectstatic --noinput
-python manage.py migrate
+python3 manage.py collectstatic --noinput
+python3 manage.py migrate
 
 echo "✅ Railway build complete!"
