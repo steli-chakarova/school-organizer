@@ -55,6 +55,7 @@ RUN playwright install-deps
 COPY . .
 
 # Collect static files
+ENV DJANGO_SETTINGS_MODULE=school_organizer.settings_production
 RUN python manage.py collectstatic --noinput
 
 # Expose port
