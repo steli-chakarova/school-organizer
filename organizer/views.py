@@ -15,21 +15,7 @@ from django import forms
 from datetime import datetime, date as date_module, timedelta
 import calendar
 
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether, PageBreak, Frame, PageTemplate, Image, ListFlowable, ListItem
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch, cm
-from reportlab.lib import colors
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib.fonts import addMapping
-
-from pdf2image import convert_from_bytes
-from io import BytesIO
-import tempfile
-import os
-import base64
-from PIL import Image as PILImage
+# ReportLab, pdf2image, and PIL imports removed - using Playwright for PDF/JPEG generation
 
 from .models import Subject, Book, WeeklySchedule, DailyEntry, DailyExtra, HomeworkEntry, User
 
@@ -1150,11 +1136,13 @@ class HistoryView(View):
         return daily_data
 
 
-class ExportPDFView(View):
-    
+# ExportPDFView class removed - using ExportTemplatePDFView instead
+
+
+class ExportJPEGView(View):
     def get(self, request, date=None):
         from django.template.loader import render_to_string
-        from .pdf_service import html_to_pdf_bytes
+        from .pdf_service import get_browser
         
         # Parse the date
         if date:
@@ -1321,7 +1309,7 @@ class ExportPDFView(View):
                 })
         
         return daily_data
-    
+
     def convert_html_to_reportlab(self, html_content):
         """Convert HTML content to properly styled ReportLab flowable elements"""
         if not html_content:
@@ -1369,7 +1357,7 @@ class ExportPDFView(View):
                     elements.append(Spacer(1, 4))
                     elements.append(self.create_checklist(element, normal_style))
                     elements.append(Spacer(1, 8))
-                else:
+        else:
                     # Regular unordered list
                     elements.append(Spacer(1, 4))
                     elements.append(self.create_unordered_list(element, normal_style))
@@ -1421,18 +1409,24 @@ class ExportPDFView(View):
         
         return elements
     
-    def create_list_items(self, list_element, ordered=False):
-        """Create ListItem objects for ReportLab ListFlowable"""
-        from reportlab.platypus import ListItem
+    # Old ReportLab methods removed - using Playwright for PDF generation
+    
+    def build_html_content(self, daily_data, selected_date):
+        """Build HTML content from daily data for template PDF export (same as PDF)"""
+        html_parts = []
         
-        items = []
-        list_items = list_element.find_all('li')
+        # Title
+        html_parts.append(f'<h1 style="text-align: center; font-size: 18px; margin-bottom: 10px;">{selected_date.strftime("%d %B %Y")}</h1>')
         
-        for idx, item in enumerate(list_items, 1):
-            # Check for checkbox first
-            checkbox = item.find('input', {'type': 'checkbox'})
-            
-            if checkbox:
+        # Check if there's any data
+        has_data = any(entry.get('has_entry', False) for entry in daily_data)
+        
+        if not has_data:
+            html_parts.append('<p>No data saved for this day.</p>')
+        else:
+            # Add each subject's data
+            for entry in daily_data:
+                if entry.get('has_entry', False):
                 # This is a checklist item
                 checked = checkbox.has_attr('checked') or checkbox.get('checked') is not None
                 prefix = "[x]" if checked else "[_]"
@@ -1557,7 +1551,7 @@ class ExportPDFView(View):
                                 else self.create_unordered_list(child, style))
                 elif child.name == 'ol':
                     cell.append(self.create_ordered_list(child, style))
-                else:
+        else:
                     # if this child contains checkboxes but isn't a UL, render as checklist container
                     if child.find('input', {'type':'checkbox'}):
                         cl = self.create_checklist_from_container(child, style)
@@ -1635,7 +1629,7 @@ class ExportPDFView(View):
                 elif node.name in ['input', 'br']:
                     # Skip these tags
                     pass
-                else:
+            else:
                     # For other tags, process children if they exist
                     if hasattr(node, 'children'):
                         for child in node.children:
@@ -1784,8 +1778,8 @@ class ExportPDFView(View):
             if not rows:
                 return None
             
-            table_data = []
-            
+        table_data = []
+        
             for i, row in enumerate(rows):
                 cells = row.find_all(['td', 'th'])
                 if cells:
@@ -2194,7 +2188,8 @@ class ExportPDFView(View):
             print(f"Error creating image from HTML: {e}")
             return None
 
-class ExportJPEGView(View):
+
+class ExportTemplatePDFView(View):
     def get(self, request, date=None):
         from django.template.loader import render_to_string
         from .pdf_service import get_browser
@@ -2336,8 +2331,8 @@ class ExportJPEGView(View):
                     
                     # Left column: Resources only (no Notes for JPEG)
                     html_parts.append('<div class="left-column">')
-                    
-                    # Resources section
+        
+        # Resources section
                     if entry['book_name'] or entry['extras']:
                         html_parts.append('<div class="section">')
                         html_parts.append('<div class="section-title">Ресурси:</div>')
@@ -2351,9 +2346,9 @@ class ExportJPEGView(View):
                         
                         # Extra books
                         for extra in entry['extras']:
-                            extra_text = f"→ {extra['book_name']}"
-                            if extra['pages']:
-                                extra_text += f" стр. {extra['pages']}"
+            extra_text = f"→ {extra['book_name']}"
+            if extra['pages']:
+                extra_text += f" стр. {extra['pages']}"
                             html_parts.append(f'<p>{extra_text}</p>')
                         html_parts.append('</div>')
                     
@@ -2381,9 +2376,9 @@ class ExportJPEGView(View):
                         html_parts.append('<div class="section">')
                         html_parts.append('<div class="section-title">Домашно:</div>')
                         for hw in entry['homework']:
-                            hw_text = f"→ {hw['book_name']}"
-                            if hw['pages']:
-                                hw_text += f" стр. {hw['pages']}"
+                hw_text = f"→ {hw['book_name']}"
+                if hw['pages']:
+                    hw_text += f" стр. {hw['pages']}"
                             html_parts.append(f'<p>{hw_text}</p>')
                         html_parts.append('</div>')
                     
@@ -2490,7 +2485,7 @@ class ExportTemplatePDFView(View):
                 })
         
         return daily_data
-    
+
     def build_html_content(self, daily_data, selected_date):
         """Build HTML content from daily data for template PDF export (same as PDF)"""
         html_parts = []
@@ -2638,34 +2633,34 @@ class TodayAutoSaveAPIView(View):
                         'pages': extra_pages or ''
                     })
             
-            # Get subject
-            try:
-                subject = Subject.objects.get(id=subject_id, created_by=target_user)
-            except Subject.DoesNotExist:
-                return JsonResponse({'error': 'Subject not found'}, status=404)
-            
-            # Get book if book_id is provided
-            book = None
-            if book_id:
+                # Get subject
                 try:
+                    subject = Subject.objects.get(id=subject_id, created_by=target_user)
+                except Subject.DoesNotExist:
+                    return JsonResponse({'error': 'Subject not found'}, status=404)
+                
+            # Get book if book_id is provided
+                book = None
+                if book_id:
+                    try:
                     book = Book.objects.get(id=book_id, created_by=target_user)
-                except Book.DoesNotExist:
+                    except Book.DoesNotExist:
                     pass  # book will remain None
             
             # Create or update daily entry
             daily_entry, created = DailyEntry.objects.get_or_create(
-                subject=subject,
+                        subject=subject,
                 date=today_date,
                 created_by=target_user,
-                defaults={
+                        defaults={
                     'notes': notes, 
                     'important_notes': important_notes,
-                    'book': book,
+                            'book': book,
                     'pages': pages
-                }
-            )
-            
-            if not created:
+                        }
+                    )
+                    
+                    if not created:
                 daily_entry.notes = notes
                 daily_entry.important_notes = important_notes
                 daily_entry.book = book
@@ -2686,7 +2681,7 @@ class TodayAutoSaveAPIView(View):
                             book=extra_book,
                             pages=extra_data['pages']
                         )
-                    except Book.DoesNotExist:
+                                except Book.DoesNotExist:
                         pass  # Skip invalid book IDs
             
             # Handle homework
@@ -2703,7 +2698,7 @@ class TodayAutoSaveAPIView(View):
                             book=hw_book,
                             pages=hw_data['pages']
                         )
-                    except Book.DoesNotExist:
+                                except Book.DoesNotExist:
                         pass  # Skip invalid book IDs
             
             return JsonResponse({'success': True})
@@ -2761,7 +2756,7 @@ class SubjectsBooksAPIView(View):
             })
         
         return JsonResponse({'subjects': data})
-
+    
 
 class NoAccessView(View):
     def get(self, request):
