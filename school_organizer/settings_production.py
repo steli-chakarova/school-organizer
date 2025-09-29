@@ -41,6 +41,10 @@ STATICFILES_DIRS = [
 MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+# Ensure no async middleware is interfering
+# Remove any potential async middleware that might cause issues
+MIDDLEWARE = [m for m in MIDDLEWARE if 'async' not in m.lower()]
+
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
@@ -79,3 +83,12 @@ AUTH_USER_MODEL = 'organizer.User'
 
 # Force Django to use sync mode to prevent SynchronousOnlyOperation errors
 DJANGO_ALLOW_ASYNC_UNSAFE = True
+
+# Explicitly disable ASGI and force WSGI usage
+ASGI_APPLICATION = None
+
+# Force sync database connections
+DATABASES['default']['CONN_MAX_AGE'] = 0
+DATABASES['default']['OPTIONS'] = {
+    'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+}

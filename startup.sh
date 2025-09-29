@@ -26,4 +26,5 @@ python3 railway_load_data.py
 # Start the application
 echo "🌟 Starting Django application..."
 export DJANGO_SETTINGS_MODULE=school_organizer.settings_production
-exec gunicorn school_organizer.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --worker-class sync --worker-connections 1000 --timeout 120 --preload
+export DJANGO_ALLOW_ASYNC_UNSAFE=True
+exec gunicorn school_organizer.wsgi_production:application --bind 0.0.0.0:$PORT --workers 1 --worker-class sync --worker-connections 1000 --timeout 120 --preload
