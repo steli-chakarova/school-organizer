@@ -1194,7 +1194,7 @@ class ExportJPEGView(View):
             return redirect("history")
     
     def build_html_content(self, daily_data, selected_date):
-        """Build HTML content from daily data for Playwright PDF export"""
+        """Build HTML content from daily data for JPEG export (only Ресурси, Важно, Домашно)"""
         html_parts = []
         
         # Title
@@ -1215,7 +1215,7 @@ class ExportJPEGView(View):
                     # Start two-column layout
                     html_parts.append('<div class="subject-content">')
                     
-                    # Left column: Resources and Notes
+                    # Left column: Resources only (no Notes for JPEG)
                     html_parts.append('<div class="left-column">')
                     
                     # Resources section
@@ -1238,12 +1238,7 @@ class ExportJPEGView(View):
                             html_parts.append(f'<p>{extra_text}</p>')
                         html_parts.append('</div>')
                     
-                    # Notes
-                    if entry['notes']:
-                        html_parts.append('<div class="section">')
-                        html_parts.append('<div class="section-title">Записки:</div>')
-                        html_parts.append(entry['notes'])
-                        html_parts.append('</div>')
+                    # Notes - SKIPPED for JPEG export (only show Ресурси, Важно, Домашно)
                     
                     html_parts.append('</div>')  # End left column
                     
@@ -1274,7 +1269,7 @@ class ExportJPEGView(View):
         return ''.join(html_parts)
     
     def get_daily_data(self, selected_date):
-        """Helper method to get daily data for PDF export"""
+        """Helper method to get daily data for JPEG export"""
         # Get all subjects scheduled for this day (active schedules only)
         scheduled_subjects = WeeklySchedule.objects.filter(day_of_week=selected_date.weekday() + 1, is_active=True).select_related('subject').order_by('position')
         
@@ -1367,7 +1362,7 @@ class ExportTemplatePDFView(View):
         return response
     
     def get_daily_data(self, selected_date, request):
-        """Helper method to get daily data for JPEG export"""
+        """Helper method to get daily data for PDF export"""
         # Get all subjects scheduled for this day (active schedules only)
         scheduled_subjects = WeeklySchedule.objects.filter(day_of_week=selected_date.weekday() + 1, is_active=True).select_related("subject").order_by("position")
         
@@ -1431,7 +1426,7 @@ class ExportTemplatePDFView(View):
         return daily_data
     
     def build_html_content(self, daily_data, selected_date):
-        """Build HTML content from daily data for JPEG export (only Ресурси, Важно, Домашно)"""
+        """Build HTML content from daily data for PDF export (ALL content: Ресурси, Записки, Важно, Домашно)"""
         html_parts = []
         
         # Title
@@ -1452,10 +1447,10 @@ class ExportTemplatePDFView(View):
                     # Start two-column layout
                     html_parts.append('<div class="subject-content">')
                     
-                    # Left column: Resources only (no Notes for JPEG)
+                    # Left column: Resources and Notes
                     html_parts.append('<div class="left-column">')
-        
-        # Resources section
+                    
+                    # Resources section
                     if entry['book_name'] or entry['extras']:
                         html_parts.append('<div class="section">')
                         html_parts.append('<div class="section-title">Ресурси:</div>')
@@ -1475,12 +1470,12 @@ class ExportTemplatePDFView(View):
                             html_parts.append(f'<p>{extra_text}</p>')
                         html_parts.append('</div>')
                     
-                    # Notes - SKIPPED for JPEG export (only show Ресурси, Важно, Домашно)
-                    # if entry['notes']:
-                    #     html_parts.append('<div class="section">')
-                    #     html_parts.append('<div class="section-title">Записки:</div>')
-                    #     html_parts.append(entry['notes'])
-                    #     html_parts.append('</div>')
+                    # Notes - INCLUDED for PDF export (show ALL content)
+                    if entry['notes']:
+                        html_parts.append('<div class="section">')
+                        html_parts.append('<div class="section-title">Записки:</div>')
+                        html_parts.append(entry['notes'])
+                        html_parts.append('</div>')
                     
                     html_parts.append('</div>')  # End left column
                     
