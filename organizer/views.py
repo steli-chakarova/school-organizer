@@ -1178,16 +1178,27 @@ class HistoryView(View):
                         'pages': homework.pages
                     })
                 
-                daily_data.append({
-                    'subject_name': daily_entry.subject.name,
-                    'book_name': daily_entry.book.title if daily_entry.book else None,
-                    'pages': daily_entry.pages,
-                    'notes': daily_entry.notes,
-                    'important_notes': daily_entry.important_notes,
-                    'extras': extra_books,
-                    'homework': homework_books,
-                    'has_entry': True
-                })
+                # Only add this subject if it has meaningful content
+                has_content = (
+                    daily_entry.book or  # Has a book
+                    daily_entry.pages or  # Has pages
+                    daily_entry.notes or  # Has notes
+                    daily_entry.important_notes or  # Has important notes
+                    extra_books or  # Has extra books
+                    homework_books  # Has homework
+                )
+                
+                if has_content:
+                    daily_data.append({
+                        'subject_name': daily_entry.subject.name,
+                        'book_name': daily_entry.book.title if daily_entry.book else None,
+                        'pages': daily_entry.pages,
+                        'notes': daily_entry.notes,
+                        'important_notes': daily_entry.important_notes,
+                        'extras': extra_books,
+                        'homework': homework_books,
+                        'has_entry': True
+                    })
             except DailyEntry.DoesNotExist:
                 # No daily entry for this subject, skip it
                 continue
@@ -1220,16 +1231,27 @@ class HistoryView(View):
                         'pages': homework.pages
                     })
                 
-                daily_data.append({
-                    'subject_name': daily_entry.subject.name,
-                    'book_name': daily_entry.book.title if daily_entry.book else None,
-                    'pages': daily_entry.pages,
-                    'notes': daily_entry.notes,
-                    'important_notes': daily_entry.important_notes,
-                    'extras': extra_books,
-                    'homework': homework_books,
-                    'has_entry': True
-                })
+                # Only add this subject if it has meaningful content
+                has_content = (
+                    daily_entry.book or  # Has a book
+                    daily_entry.pages or  # Has pages
+                    daily_entry.notes or  # Has notes
+                    daily_entry.important_notes or  # Has important notes
+                    extra_books or  # Has extra books
+                    homework_books  # Has homework
+                )
+                
+                if has_content:
+                    daily_data.append({
+                        'subject_name': daily_entry.subject.name,
+                        'book_name': daily_entry.book.title if daily_entry.book else None,
+                        'pages': daily_entry.pages,
+                        'notes': daily_entry.notes,
+                        'important_notes': daily_entry.important_notes,
+                        'extras': extra_books,
+                        'homework': homework_books,
+                        'has_entry': True
+                    })
         
         return daily_data
     

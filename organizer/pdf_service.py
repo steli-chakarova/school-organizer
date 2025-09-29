@@ -60,7 +60,7 @@ def html_to_pdf_bytes(html: str, base_url: str = None) -> bytes:
     try:
         # Set content directly - no external resources needed for our use case
         content_start = time.time()
-        page.set_content(html, wait_until="networkidle", timeout=10000)  # Wait for network to be idle
+        page.set_content(html, wait_until="domcontentloaded", timeout=5000)  # Faster - just wait for DOM
         print(f"Content set in {time.time() - content_start:.2f}s")
         
         pdf_start = time.time()
@@ -68,9 +68,8 @@ def html_to_pdf_bytes(html: str, base_url: str = None) -> bytes:
             format="A4",
             print_background=True,
             margin={"top": "10mm", "right": "5mm", "bottom": "15mm", "left": "5mm"},
-            prefer_css_page_size=False,  # Faster without CSS page size
             display_header_footer=False,
-            timeout=30000  # 30 second timeout for PDF generation
+            timeout=15000  # 15 second timeout for PDF generation
         )
         print(f"PDF generated in {time.time() - pdf_start:.2f}s")
         print(f"Total time: {time.time() - start_time:.2f}s")
