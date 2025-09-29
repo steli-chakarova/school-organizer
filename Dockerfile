@@ -10,8 +10,8 @@ RUN apt-get update && apt-get install -y \
     libgobject-2.0-0 \
     libnspr4 \
     libnss3 \
-    libnssutil3 \
-    libsmime3 \
+    libnss3-dev \
+    libnss3-tools \
     libgio-2.0-0 \
     libdbus-1-3 \
     libatk1.0-0 \
@@ -31,6 +31,13 @@ RUN apt-get update && apt-get install -y \
     libcairo2 \
     libpango-1.0-0 \
     libasound2 \
+    fonts-liberation \
+    libappindicator3-1 \
+    libdrm2 \
+    libgtk-3-0 \
+    libxss1 \
+    libxtst6 \
+    xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
