@@ -13,9 +13,11 @@ pip install -r requirements.txt
 echo "📦 Installing Node.js dependencies..."
 npm install
 
-# Install Playwright browsers
+# Install Playwright browsers and dependencies
 echo "🌐 Installing Playwright browsers..."
 playwright install chromium
+echo "🔧 Installing Playwright system dependencies..."
+playwright install-deps
 
 # Set up Django
 echo "⚙️ Setting up Django..."

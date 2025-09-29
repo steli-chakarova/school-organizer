@@ -9,9 +9,11 @@ echo "🚀 Setting up School Organizer for production..."
 echo "📦 Installing Python dependencies..."
 pip install -r requirements.txt
 
-# Install Playwright browsers
+# Install Playwright browsers and dependencies
 echo "🌐 Installing Playwright browsers..."
 playwright install chromium
+echo "🔧 Installing Playwright system dependencies..."
+playwright install-deps
 
 # Set up Django
 echo "⚙️ Setting up Django..."
