@@ -4,6 +4,6 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "python3 -m playwright install chromium && python3 -m playwright install-deps && python3 setup_db.py && python3 manage.py collectstatic --noinput && python3 railway_load_data.py && DJANGO_SETTINGS_MODULE=school_organizer.settings_production gunicorn school_organizer.wsgi:application --bind 0.0.0.0:$PORT --workers 3"
+    "startCommand": "python3 -m playwright install chromium && python3 -m playwright install-deps && python3 setup_db.py && python3 manage.py collectstatic --noinput && python3 railway_load_data.py && DJANGO_SETTINGS_MODULE=school_organizer.settings_production gunicorn school_organizer.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --worker-class sync"
   }
 }

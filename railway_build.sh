@@ -24,4 +24,6 @@ echo "⚙️ Setting up Django..."
 python3 manage.py collectstatic --noinput
 python3 manage.py migrate
 
+echo "🔧 Note: Gunicorn will use sync workers for Django compatibility"
+
 echo "✅ Railway build complete!"
