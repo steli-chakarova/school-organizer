@@ -13,39 +13,37 @@ def get_browser(headless=True):
     
     with _global_lock:
         if _global_browser is None:
-            print("Initializing Playwright...")
-            _global_playwright = sync_playwright().start()
-            print("Launching browser...")
-            _global_browser = _global_playwright.chromium.launch(
-                headless=headless, 
-                args=[
-                    "--no-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                    "--disable-web-security",
-                    "--disable-features=VizDisplayCompositor",
-                    "--disable-background-timer-throttling",
-                    "--disable-backgrounding-occluded-windows",
-                    "--disable-renderer-backgrounding",
-                    "--disable-features=TranslateUI",
-                    "--disable-ipc-flooding-protection",
-                    "--single-process",
-                    "--no-zygote",
-                    "--disable-extensions",
-                    "--disable-plugins",
-                    "--disable-images",  # Skip loading images for faster rendering
-                    "--disable-default-apps",
-                    "--disable-sync",
-                    "--disable-translate",
-                    "--hide-scrollbars",
-                    "--mute-audio",
-                    "--no-first-run",
-                    "--disable-logging",
-                    "--disable-gpu-logging",
-                    "--disable-dev-tools"
-                ]
-            )
-            print("Browser launched successfully!")
+            try:
+                print("Initializing Playwright...")
+                _global_playwright = sync_playwright().start()
+                print("Launching browser...")
+                _global_browser = _global_playwright.chromium.launch(
+                    headless=headless, 
+                    args=[
+                        "--no-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--disable-gpu",
+                        "--disable-web-security",
+                        "--disable-features=VizDisplayCompositor",
+                        "--single-process",
+                        "--no-zygote",
+                        "--disable-extensions",
+                        "--disable-plugins",
+                        "--disable-default-apps",
+                        "--disable-sync",
+                        "--disable-translate",
+                        "--hide-scrollbars",
+                        "--mute-audio",
+                        "--no-first-run"
+                    ]
+                )
+                print("Browser launched successfully!")
+            except Exception as e:
+                print(f"Browser initialization failed: {e}")
+                # Clean up on failure
+                if _global_playwright:
+                    _global_playwright.stop()
+                raise
     return _global_browser
 
 def html_to_pdf_bytes(html: str, base_url: str = None) -> bytes:
