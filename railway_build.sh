@@ -1,29 +1,13 @@
 #!/bin/bash
 
-# Railway build script for School Organizer
-# This ensures Playwright browsers are installed during Railway deployment
+# Railway build script - runs heavy downloads during build phase
+# This runs once during build, not on every deployment
 
-echo "🚀 Building School Organizer for Railway..."
+echo "🚀 Starting Railway build process..."
 
-# Install Python dependencies
-echo "📦 Installing Python dependencies..."
-pip install -r requirements.txt
+# Install Playwright browsers (heavy download - ~100MB)
+echo "📦 Installing Playwright browsers..."
+python3 -m playwright install chromium
+python3 -m playwright install-deps
 
-# Install Node.js dependencies (for Playwright)
-echo "📦 Installing Node.js dependencies..."
-npm install
-
-# Install Playwright browsers and dependencies
-echo "🌐 Installing Playwright browsers..."
-playwright install chromium
-echo "🔧 Installing Playwright system dependencies..."
-playwright install-deps
-
-# Set up Django
-echo "⚙️ Setting up Django..."
-python3 manage.py collectstatic --noinput
-python3 manage.py migrate
-
-echo "🔧 Note: Gunicorn will use sync workers for Django compatibility"
-
-echo "✅ Railway build complete!"
+echo "✅ Build process complete!"

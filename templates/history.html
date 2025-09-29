@@ -53,6 +53,9 @@
                     {% if day_date.day in days_with_entries %}
                     <span class="entry-indicator">●</span>
                     {% endif %}
+                    {% if day_date.day in days_with_tests %}
+                    <span class="test-indicator">★</span>
+                    {% endif %}
                     <div class="day-actions">
                         {% if can_edit %}
                             {% if username and user_id %}
@@ -89,6 +92,22 @@
                 </a>
             </div>
         </div>
+        
+        {% if tests_data %}
+        <div class="tests-section">
+            {% if tests_data|length == 1 %}
+            <div class="test-notification">
+                <strong>Контролно по {{ tests_data.0.subject_name }}</strong>
+            </div>
+            {% else %}
+            <div class="test-notification">
+                {% for test in tests_data %}
+                <div><strong>Контролно по {{ test.subject_name }}</strong></div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
         
         {% if daily_data %}
         <div class="daily-entries history-page">

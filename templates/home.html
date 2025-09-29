@@ -89,6 +89,33 @@
     </div>
     {% endif %}
     
+    <!-- Add Test Card -->
+    {% if user.is_admin or user.is_teacher %}
+    <div class="add-test-section">
+        <h3>Add Test</h3>
+        <div id="test-chips" class="test-chips-container">
+            <!-- Saved tests will appear as chips here -->
+        </div>
+        <div id="test-entries">
+            <div class="test-entry">
+                <div class="form-row">
+                    <input type="text" name="test_date" required class="test-date-input" placeholder="dd.mm.yyyy" readonly>
+                    <select name="test_subject" required class="test-subject-select">
+                        <option value="">Select Subject</option>
+                        {% for subject in subjects %}
+                        <option value="{{ subject.id }}">{{ subject.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" class="remove-test-btn" onclick="removeTestEntry(this)" style="display: none;">×</button>
+                </div>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="addTestEntry()">Add more</button>
+        </div>
+    </div>
+    {% endif %}
+    
     
     <!-- Weekly Schedule Form -->
     <div class="schedule-form-section">
@@ -877,6 +904,319 @@ function removeSubject(button) {
         const select = subjectItem.querySelector('select');
         select.value = '';
     }
+}
+
+// Date formatting functions
+function formatDateToDDMMYYYY(date) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+}
+
+function parseDDMMYYYYToDate(dateStr) {
+    const parts = dateStr.split('.');
+    if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1; // JavaScript months are 0-based
+        const year = parseInt(parts[2], 10);
+        return new Date(year, month, day);
+    }
+    return null;
+}
+
+// Test management functions
+function addTestEntry() {
+    const testEntries = document.getElementById('test-entries');
+    const newEntry = document.createElement('div');
+    newEntry.className = 'test-entry';
+    
+    // Get the subjects data from the first select (if it exists)
+    const firstSelect = testEntries.querySelector('select[name="test_subject"]');
+    let subjectsOptions = '';
+    if (firstSelect) {
+        // Copy all options from existing select
+        subjectsOptions = firstSelect.innerHTML;
+    } else {
+        // Fallback if no subjects exist yet - create basic structure
+        subjectsOptions = '<option value="">Select Subject</option>';
+    }
+    
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    // Format today's date as dd.mm.yyyy
+    const todayFormatted = formatDateToDDMMYYYY(today);
+    
+    newEntry.innerHTML = `
+        <div class="form-row">
+            <input type="text" name="test_date" required class="test-date-input" value="${todayFormatted}" placeholder="dd.mm.yyyy" readonly>
+            <select name="test_subject" required class="test-subject-select">
+                ${subjectsOptions}
+            </select>
+            <button type="button" class="remove-test-btn" onclick="removeTestEntry(this)">×</button>
+        </div>
+    `;
+    
+    testEntries.appendChild(newEntry);
+    
+    // Show remove buttons for all entries if there's more than one
+    updateTestRemoveButtons();
+    
+    // Add event listeners for dynamic saving
+    addTestEntryEventListeners(newEntry);
+}
+
+function removeTestEntry(button) {
+    const testEntry = button.closest('.test-entry');
+    testEntry.remove();
+    
+    // Update remove button visibility
+    updateTestRemoveButtons();
+}
+
+function updateTestRemoveButtons() {
+    const testEntries = document.getElementById('test-entries');
+    const entries = testEntries.querySelectorAll('.test-entry');
+    const removeButtons = testEntries.querySelectorAll('.remove-test-btn');
+    
+    // Show remove buttons only if there's more than one entry
+    removeButtons.forEach(button => {
+        button.style.display = entries.length > 1 ? 'inline-block' : 'none';
+    });
+}
+
+function addTestEntryEventListeners(testEntry) {
+    const dateInput = testEntry.querySelector('.test-date-input');
+    const subjectSelect = testEntry.querySelector('.test-subject-select');
+    
+    // Save test when both date and subject are filled
+    function saveTest() {
+        const date = dateInput.value;
+        const subjectId = subjectSelect.value;
+        
+        if (date && subjectId) {
+            saveTestToServer(date, subjectId);
+        }
+    }
+    
+    // Add click handler to open date picker
+    dateInput.addEventListener('click', function() {
+        openDatePicker(dateInput);
+    });
+    
+    subjectSelect.addEventListener('change', saveTest);
+}
+
+function openDatePicker(dateInput) {
+    // Create a temporary date input for the native date picker
+    const tempInput = document.createElement('input');
+    tempInput.type = 'date';
+    tempInput.style.position = 'absolute';
+    tempInput.style.left = '-9999px';
+    tempInput.style.opacity = '0';
+    
+    // Set current value if exists
+    const currentValue = dateInput.value;
+    if (currentValue) {
+        const dateObj = parseDDMMYYYYToDate(currentValue);
+        if (dateObj) {
+            tempInput.value = dateObj.toISOString().split('T')[0];
+        }
+    } else {
+        // Set today's date as default
+        const today = new Date();
+        tempInput.value = today.toISOString().split('T')[0];
+    }
+    
+    document.body.appendChild(tempInput);
+    
+    // Focus and click the temporary input
+    tempInput.focus();
+    tempInput.click();
+    
+    // Handle the change event
+    tempInput.addEventListener('change', function() {
+        if (tempInput.value) {
+            const selectedDate = new Date(tempInput.value);
+            dateInput.value = formatDateToDDMMYYYY(selectedDate);
+            
+            // Trigger save if subject is also selected
+            const subjectSelect = dateInput.closest('.test-entry').querySelector('.test-subject-select');
+            if (subjectSelect.value) {
+                saveTestToServer(dateInput.value, subjectSelect.value);
+            }
+        }
+        
+        // Clean up
+        document.body.removeChild(tempInput);
+    });
+    
+    // Clean up if user clicks outside
+    setTimeout(() => {
+        if (document.body.contains(tempInput)) {
+            document.body.removeChild(tempInput);
+        }
+    }, 10000);
+}
+
+function saveTestToServer(date, subjectId) {
+    // Convert dd.mm.yyyy to yyyy-mm-dd for server
+    const dateObj = parseDDMMYYYYToDate(date);
+    if (!dateObj) {
+        showTestMessage('Invalid date format', 'error');
+        return;
+    }
+    
+    const serverDate = dateObj.toISOString().split('T')[0];
+    
+    fetch('{% if is_admin_view %}{% url "home_user" target_user.username target_user.id %}{% else %}{% url "home" %}{% endif %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: `action=add_tests&test_date=${encodeURIComponent(serverDate)}&test_subject=${encodeURIComponent(subjectId)}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success indicator
+            showTestMessage(data.message, 'success');
+            // Add the test as a chip
+            addTestChip(date, subjectId);
+        } else {
+            showTestMessage(data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving test:', error);
+        showTestMessage('Error saving test', 'error');
+    });
+}
+
+function showTestMessage(message, type) {
+    // Create or update message element
+    let messageEl = document.getElementById('test-message');
+    if (!messageEl) {
+        messageEl = document.createElement('div');
+        messageEl.id = 'test-message';
+        messageEl.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 5px;
+            color: white;
+            font-weight: bold;
+            z-index: 1000;
+            transition: opacity 0.3s ease;
+        `;
+        document.body.appendChild(messageEl);
+    }
+    
+    messageEl.textContent = message;
+    messageEl.style.backgroundColor = type === 'success' ? '#28a745' : '#dc3545';
+    messageEl.style.opacity = '1';
+    
+    // Hide message after 3 seconds
+    setTimeout(() => {
+        messageEl.style.opacity = '0';
+    }, 3000);
+}
+
+// Chip management functions
+function addTestChip(date, subjectId) {
+    const chipsContainer = document.getElementById('test-chips');
+    const subjectSelect = document.querySelector('.test-subject-select');
+    const subjectName = subjectSelect.querySelector(`option[value="${subjectId}"]`).textContent;
+    
+    const chip = document.createElement('div');
+    chip.className = 'test-chip';
+    chip.dataset.date = date;
+    chip.dataset.subjectId = subjectId;
+    chip.innerHTML = `
+        <span class="chip-text">${subjectName} (${date})</span>
+        <button type="button" class="chip-remove" onclick="removeTestChip(this)">×</button>
+    `;
+    
+    chipsContainer.appendChild(chip);
+    
+    // Clear the form
+    clearTestForm();
+}
+
+function removeTestChip(button) {
+    const chip = button.closest('.test-chip');
+    const date = chip.dataset.date;
+    const subjectId = chip.dataset.subjectId;
+    
+    // Convert date back to server format for deletion
+    const dateObj = parseDDMMYYYYToDate(date);
+    if (dateObj) {
+        const serverDate = dateObj.toISOString().split('T')[0];
+        deleteTestFromServer(serverDate, subjectId);
+    }
+    
+    chip.remove();
+}
+
+function deleteTestFromServer(date, subjectId) {
+    fetch('{% if is_admin_view %}{% url "home_user" target_user.username target_user.id %}{% else %}{% url "home" %}{% endif %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: `action=delete_test&test_date=${encodeURIComponent(date)}&test_subject=${encodeURIComponent(subjectId)}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showTestMessage('Test deleted successfully!', 'success');
+        } else {
+            showTestMessage(data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting test:', error);
+        showTestMessage('Error deleting test', 'error');
+    });
+}
+
+function clearTestForm() {
+    const dateInput = document.querySelector('.test-date-input');
+    const subjectSelect = document.querySelector('.test-subject-select');
+    
+    if (dateInput) {
+        const today = new Date();
+        dateInput.value = formatDateToDDMMYYYY(today);
+    }
+    if (subjectSelect) {
+        subjectSelect.value = '';
+    }
+}
+
+// Initialize the first test entry with today's date and event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Set today's date for the first entry
+    const firstDateInput = document.querySelector('.test-date-input');
+    if (firstDateInput) {
+        const today = new Date();
+        firstDateInput.value = formatDateToDDMMYYYY(today);
+        
+        // Add event listeners to the first entry
+        addTestEntryEventListeners(firstDateInput.closest('.test-entry'));
+    }
+    
+    // Load existing tests as chips
+    loadExistingTests();
+});
+
+function loadExistingTests() {
+    // This would load existing tests from the server
+    // For now, we'll implement this when we add the backend support
 }
 </script>
 {% endblock %}

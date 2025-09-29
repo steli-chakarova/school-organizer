@@ -130,3 +130,16 @@ class HomeworkEntry(models.Model):
     
     class Meta:
         ordering = ['id']
+
+
+class Test(models.Model):
+    date = models.DateField()
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='tests')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    def __str__(self):
+        return f"{self.date} - {self.subject.name}"
+    
+    class Meta:
+        ordering = ['date', 'subject__name']
+        unique_together = ['date', 'subject']

@@ -17,7 +17,7 @@ import calendar
 
 # ReportLab, pdf2image, and PIL imports removed - using Playwright for PDF/JPEG generation
 
-from .models import Subject, Book, WeeklySchedule, DailyEntry, DailyExtra, HomeworkEntry, User
+from .models import Subject, Book, WeeklySchedule, DailyEntry, DailyExtra, HomeworkEntry, User, Test
 
 
 def is_mobile_device(request):
@@ -245,6 +245,64 @@ class HomeView(View):
             request.user.alias = alias if alias else None
             request.user.save()
             messages.success(request, 'Display name updated successfully!')
+        
+        elif 'action' in request.POST and request.POST.get('action') == 'add_tests':
+            # Add single test (for dynamic saving)
+            test_date = request.POST.get('test_date')
+            test_subject = request.POST.get('test_subject')
+            
+            if test_date and test_subject:
+                try:
+                    subject = Subject.objects.get(id=test_subject)
+                    # Check if user can edit this subject
+                    if request.user.can_edit(subject):
+                        test_date_obj = datetime.strptime(test_date, '%Y-%m-%d').date()
+                        test, created = Test.objects.get_or_create(
+                            date=test_date_obj,
+                            subject=subject,
+                            defaults={'created_by': request.user}
+                        )
+                        if created:
+                            return JsonResponse({'success': True, 'message': 'Test added successfully!'})
+                        else:
+                            return JsonResponse({'success': True, 'message': 'Test already exists for this date and subject.'})
+                    else:
+                        return JsonResponse({'success': False, 'error': 'You can only add tests for subjects you created!'})
+                except Subject.DoesNotExist:
+                    return JsonResponse({'success': False, 'error': 'Subject not found!'})
+                except ValueError:
+                    return JsonResponse({'success': False, 'error': 'Invalid date format!'})
+            else:
+                return JsonResponse({'success': False, 'error': 'Please provide test date and subject!'})
+        
+        elif 'action' in request.POST and request.POST.get('action') == 'delete_test':
+            # Delete single test
+            test_date = request.POST.get('test_date')
+            test_subject = request.POST.get('test_subject')
+            
+            if test_date and test_subject:
+                try:
+                    subject = Subject.objects.get(id=test_subject)
+                    # Check if user can edit this subject
+                    if request.user.can_edit(subject):
+                        test_date_obj = datetime.strptime(test_date, '%Y-%m-%d').date()
+                        test = Test.objects.get(
+                            date=test_date_obj,
+                            subject=subject,
+                            created_by=request.user
+                        )
+                        test.delete()
+                        return JsonResponse({'success': True, 'message': 'Test deleted successfully!'})
+                    else:
+                        return JsonResponse({'success': False, 'error': 'You can only delete tests for subjects you created!'})
+                except Test.DoesNotExist:
+                    return JsonResponse({'success': False, 'error': 'Test not found!'})
+                except Subject.DoesNotExist:
+                    return JsonResponse({'success': False, 'error': 'Subject not found!'})
+                except ValueError:
+                    return JsonResponse({'success': False, 'error': 'Invalid date format!'})
+            else:
+                return JsonResponse({'success': False, 'error': 'Please provide test date and subject!'})
         
         return redirect('home')
 
@@ -942,10 +1000,15 @@ class HistoryView(View):
         # Get days with entries for highlighting
         days_with_entries = self.get_days_with_entries(year, month, target_user)
         
+        # Get days with tests for highlighting
+        days_with_tests = self.get_days_with_tests(year, month, target_user)
+        
         # Get daily data if a date is selected
         daily_data = None
+        tests_data = None
         if selected_date:
             daily_data = self.get_daily_data(selected_date, target_user)
+            tests_data = self.get_tests_data(selected_date, target_user)
         
         # Calculate previous and next month
         prev_month = month - 1 if month > 1 else 12
@@ -959,8 +1022,10 @@ class HistoryView(View):
             'month': month,
             'cal_data': cal_data,
             'days_with_entries': days_with_entries,
+            'days_with_tests': days_with_tests,
             'selected_date': selected_date,
             'daily_data': daily_data,
+            'tests_data': tests_data,
             'prev_month': prev_month,
             'prev_year': prev_year,
             'next_month': next_month,
@@ -1025,6 +1090,38 @@ class HistoryView(View):
             )
         
         return [entry.date.day for entry in entries]
+    
+    def get_days_with_tests(self, year, month, target_user=None):
+        """Get list of days that have tests for the given month."""
+        first_day = date_module(year, month, 1)
+        last_day = date_module(year, month, calendar.monthrange(year, month)[1])
+        
+        # Filter tests based on user role and target_user
+        if target_user:
+            # Anonymous user viewing specific user's data OR logged-in user viewing their own data
+            tests = Test.objects.filter(
+                date__gte=first_day,
+                date__lte=last_day,
+                created_by=target_user
+            )
+        elif not self.request.user.is_authenticated:
+            # Anonymous users see no tests unless viewing specific user's data
+            tests = Test.objects.none()
+        elif self.request.user.is_admin():
+            # Admin viewing their own history should only see their own tests
+            tests = Test.objects.filter(
+                date__gte=first_day,
+                date__lte=last_day,
+                created_by=self.request.user
+            )
+        else:  # Teacher - only their own tests
+            tests = Test.objects.filter(
+                date__gte=first_day,
+                date__lte=last_day,
+                created_by=self.request.user
+            )
+        
+        return [test.date.day for test in tests]
     
     def get_daily_data(self, selected_date, target_user=None):
         """Get all daily data for the selected date in weekly schedule order."""
@@ -1134,6 +1231,27 @@ class HistoryView(View):
                 })
         
         return daily_data
+    
+    def get_tests_data(self, selected_date, target_user=None):
+        """Get all tests for the selected date."""
+        # Get the target user for filtering
+        if target_user:
+            user_to_filter = target_user
+        elif not self.request.user.is_authenticated:
+            # Anonymous users see no tests unless viewing specific user's data
+            return []
+        elif self.request.user.is_admin():
+            user_to_filter = self.request.user
+        else:  # Teacher - only their own tests
+            user_to_filter = self.request.user
+        
+        # Get tests for this date
+        tests = Test.objects.filter(
+            date=selected_date,
+            created_by=user_to_filter
+        ).select_related('subject').order_by('subject__name')
+        
+        return [{'subject_name': test.subject.name} for test in tests]
 
 
 # ExportPDFView class removed - using ExportTemplatePDFView instead
