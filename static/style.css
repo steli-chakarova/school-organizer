@@ -2227,7 +2227,7 @@ button:hover {
 }
 
 .test-indicator.selected {
-    background-image: url('/static/images/wired-flat-400-bookmark-hover-flutter(1).gif');
+    background-image: url('/static/images/wired-flat-400-bookmark-hover-flutter-selected.gif');
     opacity: 1;
     transition: none;
     filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3));
