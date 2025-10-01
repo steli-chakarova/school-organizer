@@ -53,7 +53,7 @@
                     {% if day_date.day in days_with_entries %}
                     <span class="history-entry-indicator">●</span>
                     {% endif %}
-                    {% if day_date.day in days_with_tests %}
+                    {% if day_date.month == month and day_date.day in days_with_tests %}
                     <span class="test-indicator{% if selected_date and day_date == selected_date %} selected{% endif %}"></span>
                     {% endif %}
                     <div class="history-day-actions">
