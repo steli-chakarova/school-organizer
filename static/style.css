@@ -1171,6 +1171,10 @@ button:hover {
 .history-page .rich-text-content {
     line-height: 1.6;
     word-wrap: break-word;
+    overflow-wrap: break-word;
+    width: 100%;
+    position: relative;
+    z-index: 1;
 }
 
 .history-page .rich-text-content p {
@@ -2003,6 +2007,17 @@ button:hover {
     padding: 0.5rem;
     background-color: #f8f9fa;
     border-radius: 4px;
+}
+
+/* Remove background for rich text content */
+.history-detail-row.rich-text-content {
+    background-color: transparent;
+    padding: 0;
+    display: block;
+    align-items: unset;
+    width: 100%;
+    overflow: visible;
+    clear: both;
 }
 
 .history-detail-label {
