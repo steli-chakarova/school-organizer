@@ -50,13 +50,13 @@
                 {% for day_date in week %}
                 <div class="mobile-calendar-day 
                     {% if day_date.month != month %}other-month{% endif %}
-                    {% if day_date.day in days_with_entries %}has-entries{% endif %}
+                    {% if day_date.month == month and day_date.day in days_with_entries %}has-entries{% endif %}
                     {% if selected_date and day_date == selected_date %}selected{% endif %}"
                     onclick="selectMobileDate('{{ day_date|date:"Y-m-d" }}')">
                     <span class="mobile-day-number">
                         {{ day_date.day }}
                     </span>
-                    {% if day_date.day in days_with_entries %}
+                    {% if day_date.month == month and day_date.day in days_with_entries %}
                     <span class="mobile-entry-indicator">●</span>
                     {% endif %}
                     {% if day_date.month == month and day_date.day in days_with_tests %}
