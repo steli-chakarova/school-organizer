@@ -1,29 +1,24 @@
 # organizer/pdf_service.py
-import threading
 from playwright.sync_api import sync_playwright
 
-# Use thread-local storage to avoid conflicts with Django's async handling
-_thread_local = threading.local()
-
 def get_browser(headless=True):
-    """Get a browser instance for the current thread"""
-    if not hasattr(_thread_local, 'browser') or _thread_local.browser is None:
-        _thread_local.playwright = sync_playwright().start()
-        _thread_local.browser = _thread_local.playwright.chromium.launch(
-            headless=headless, 
-            args=[
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-                "--disable-web-security",
-                "--disable-features=VizDisplayCompositor"
-            ]
-        )
-    return _thread_local.browser
+    """Create a fresh browser instance for each request to avoid async conflicts"""
+    playwright = sync_playwright().start()
+    browser = playwright.chromium.launch(
+        headless=headless, 
+        args=[
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--disable-web-security",
+            "--disable-features=VizDisplayCompositor"
+        ]
+    )
+    return browser, playwright
 
 def html_to_pdf_bytes(html: str, base_url: str = None) -> bytes:
     """Generate PDF bytes from HTML content"""
-    browser = get_browser()
+    browser, playwright = get_browser()
     page = browser.new_page()
     
     try:
@@ -38,3 +33,5 @@ def html_to_pdf_bytes(html: str, base_url: str = None) -> bytes:
         return pdf
     finally:
         page.close()
+        browser.close()
+        playwright.stop()

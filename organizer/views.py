@@ -1337,16 +1337,36 @@ class ExportJPEGView(View):
         # Render the print template
         html = render_to_string("print/tiptap_pdf.html", {"doc_html": html_content})
         
+        # Add custom margins for JPEG export only
+        jpeg_margin_style = """
+        <style>
+            body {
+                padding-left: 10mm !important;
+                padding-right: 10mm !important;
+            }
+        </style>
+        """
+        # Inject the style into the HTML for JPEG export only
+        if '</head>' in html:
+            html = html.replace('</head>', jpeg_margin_style + '</head>')
+        else:
+            # Fallback if no head tag
+            html = jpeg_margin_style + html
+        
         try:
-            # Use Playwright to generate JPEG (screenshot)
-            browser = get_browser()
+            # Use Playwright to generate JPEG (screenshot) - fresh browser instance
+            browser, playwright = get_browser()
             page = browser.new_page()
             
             try:
+                # Set viewport to portrait orientation with margins (A4 portrait: 595x842 points)
+                # Reduce width to account for margins: 595 - 20mm (56.7px) = 538px
+                page.set_viewport_size({"width": 538, "height": 842})
+                
                 # Set content directly - no external resources needed for our use case
                 page.set_content(html, wait_until="domcontentloaded")
                 
-                # Take screenshot as JPEG
+                # Take screenshot as JPEG in portrait orientation
                 jpeg_bytes = page.screenshot(
                     type='jpeg',
                     quality=95,
@@ -1361,6 +1381,8 @@ class ExportJPEGView(View):
                 
             finally:
                 page.close()
+                browser.close()
+                playwright.stop()
                 
         except Exception as e:
             # Fallback: return error message
@@ -1527,9 +1549,25 @@ class ExportTemplatePDFView(View):
         html = render_to_string('print/tiptap_pdf.html', {'doc_html': html_content})
         base_url = request.build_absolute_uri("/")
         
-        # Generate PDF using Playwright
-        from .pdf_service import html_to_pdf_bytes
-        pdf_bytes = html_to_pdf_bytes(html, base_url=base_url)
+        # Generate PDF using Playwright (fresh browser instance)
+        from .pdf_service import get_browser
+        browser, playwright = get_browser()
+        page = browser.new_page()
+        
+        try:
+            # Set content directly - no external resources needed for our use case
+            page.set_content(html, wait_until="load")
+            
+            # Generate PDF
+            pdf_bytes = page.pdf(
+                format="A4",
+                print_background=True,
+                margin={"top": "10mm", "right": "5mm", "bottom": "15mm", "left": "5mm"},
+            )
+        finally:
+            page.close()
+            browser.close()
+            playwright.stop()
         
         # Create PDF response
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
@@ -1545,13 +1583,12 @@ class ExportTemplatePDFView(View):
         daily_data = []
         
         for schedule in scheduled_subjects:
-            # Check if user has access to this subject
-            if schedule.subject and schedule.subject.created_by == request.user:
-                # Get daily entry for this subject and date
+            # Include all subjects regardless of user authentication
+            if schedule.subject:
+                # Get daily entry for this subject and date (show all entries regardless of creator)
                 daily_entry = DailyEntry.objects.filter(
                     subject=schedule.subject,
-                    date=selected_date,
-                    created_by=request.user
+                    date=selected_date
                 ).first()
                 
                 has_entry = daily_entry is not None
