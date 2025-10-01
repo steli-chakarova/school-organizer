@@ -155,6 +155,20 @@ class HomeView(View):
         if 'target_user_id' in request.session:
             del request.session['target_user_id']
         
+        # Check if this is an AJAX request for loading existing tests
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            # Return existing tests as JSON
+            tests = Test.objects.filter(created_by=request.user).select_related('subject').order_by('date')
+            tests_data = []
+            for test in tests:
+                tests_data.append({
+                    'id': test.id,
+                    'date': test.date.isoformat(),
+                    'subject_id': test.subject.id,
+                    'subject_name': test.subject.name
+                })
+            return JsonResponse({'tests': tests_data})
+        
         # Show only personal projects for all users (including admin)
         subjects = Subject.objects.filter(created_by=request.user)
         # Only show schedules that reference subjects created by the current user
@@ -258,10 +272,20 @@ class HomeView(View):
                     # Check if user can edit this subject
                     if request.user.can_edit(subject):
                         test_date_obj = datetime.strptime(test_date, '%Y-%m-%d').date()
+                        
+                        # Determine who should own the test
+                        if request.user.is_admin() and 'target_user_id' in request.session:
+                            # Admin creating test for another user
+                            target_user = User.objects.get(id=request.session['target_user_id'])
+                            test_owner = target_user
+                        else:
+                            # Regular user or admin creating test for themselves
+                            test_owner = request.user
+                        
                         test, created = Test.objects.get_or_create(
                             date=test_date_obj,
                             subject=subject,
-                            defaults={'created_by': request.user}
+                            defaults={'created_by': test_owner}
                         )
                         if created:
                             return JsonResponse({'success': True, 'message': 'Test added successfully!'})
@@ -287,11 +311,20 @@ class HomeView(View):
                     # Check if user can edit this subject
                     if request.user.can_edit(subject):
                         test_date_obj = datetime.strptime(test_date, '%Y-%m-%d').date()
-                        test = Test.objects.get(
-                            date=test_date_obj,
-                            subject=subject,
-                            created_by=request.user
-                        )
+                        # Allow admins to delete tests created by other users
+                        if request.user.is_admin():
+                            # Admin can delete any test for this subject on this date
+                            test = Test.objects.get(
+                                date=test_date_obj,
+                                subject=subject
+                            )
+                        else:
+                            # Regular users can only delete their own tests
+                            test = Test.objects.get(
+                                date=test_date_obj,
+                                subject=subject,
+                                created_by=request.user
+                            )
                         test.delete()
                         return JsonResponse({'success': True, 'message': 'Test deleted successfully!'})
                     else:

@@ -60,13 +60,33 @@ class TiptapEditor {
     }
     
     createToolbarButtons() {
+        // Check if this is mobile by looking for mobile-specific classes or user agent
+        const isMobile = document.body.classList.contains('mobile') || 
+                        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        // Check if this is Firefox
+        const isFirefox = /Firefox/i.test(navigator.userAgent);
+        
+        console.log('TipTap Editor Debug:', {
+            isMobile: isMobile,
+            isFirefox: isFirefox,
+            userAgent: navigator.userAgent
+        });
+        
         const buttons = [
             { cmd: 'bold', label: 'B', title: 'Bold', style: 'font-weight: bold;' },
             { cmd: 'italic', label: 'I', title: 'Italic', style: 'font-style: italic;' },
             { cmd: 'underline', label: 'U', title: 'Underline', style: 'text-decoration: underline;' },
             { cmd: 'insertUnorderedList', label: '•', title: 'Bullet List' },
-            { cmd: 'insertOrderedList', label: '1.', title: 'Numbered List' },
-            { cmd: 'insertTaskList', label: '☐', title: 'Task List' },
+            { cmd: 'insertOrderedList', label: '1.', title: 'Numbered List' }
+        ];
+        
+        // Only add checklist option for desktop
+        if (!isMobile) {
+            buttons.push({ cmd: 'insertTaskList', label: '☐', title: 'Task List' });
+        }
+        
+        buttons.push(
             { cmd: 'formatBlock', label: 'H2', title: 'Heading 2', value: 'h2' },
             { cmd: 'insertBlockquote', label: 'Quote', title: 'Quote' },
             { cmd: 'insertHorizontalRule', label: 'Line', title: 'Horizontal Line' },

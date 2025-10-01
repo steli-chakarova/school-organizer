@@ -8,8 +8,8 @@
     <h2>{% if target_user %}{{ target_user.get_display_name }}{% else %}History{% endif %}</h2>
     
     <!-- Calendar Navigation -->
-    <div class="calendar-nav">
-        <a href="{% url 'history_user' username=username user_id=user_id %}?year={{ prev_year }}&month={{ prev_month }}" class="nav-btn">&larr; Previous</a>
+    <div class="history-calendar-nav">
+        <a href="{% url 'history_user' username=username user_id=user_id %}?year={{ prev_year }}&month={{ prev_month }}" class="history-nav-btn">&larr; Previous</a>
         <h3>
             {% if month == 1 %}January
             {% elif month == 2 %}February
@@ -25,45 +25,45 @@
             {% elif month == 12 %}December
             {% endif %} {{ year }}
         </h3>
-        <a href="{% url 'history_user' username=username user_id=user_id %}?year={{ next_year }}&month={{ next_month }}" class="nav-btn">Next &rarr;</a>
+        <a href="{% url 'history_user' username=username user_id=user_id %}?year={{ next_year }}&month={{ next_month }}" class="history-nav-btn">Next &rarr;</a>
     </div>
     
     <!-- Calendar Grid -->
-    <div class="calendar-container">
-        <div class="calendar-header">
-            <div class="day-header">Mon</div>
-            <div class="day-header">Tue</div>
-            <div class="day-header">Wed</div>
-            <div class="day-header">Thu</div>
-            <div class="day-header">Fri</div>
-            <div class="day-header">Sat</div>
-            <div class="day-header">Sun</div>
+    <div class="history-calendar-container">
+        <div class="history-calendar-header">
+            <div class="history-day-header">Mon</div>
+            <div class="history-day-header">Tue</div>
+            <div class="history-day-header">Wed</div>
+            <div class="history-day-header">Thu</div>
+            <div class="history-day-header">Fri</div>
+            <div class="history-day-header">Sat</div>
+            <div class="history-day-header">Sun</div>
         </div>
         
-        <div class="calendar-grid">
+        <div class="history-calendar-grid">
             {% for week in cal_data %}
-            <div class="calendar-week">
+            <div class="history-calendar-week">
                 {% for day_date in week %}
-                <div class="calendar-day 
+                <div class="history-calendar-day 
                     {% if day_date.month != month %}other-month{% endif %}
                     {% if day_date.day in days_with_entries %}has-entries{% endif %}
                     {% if selected_date and day_date == selected_date %}selected{% endif %}"
                     onclick="selectDate('{{ day_date|date:"Y-m-d" }}')" ondblclick="editDate('{{ day_date|date:"Y-m-d" }}')">
-                    <span class="day-number">{{ day_date.day }}</span>
+                    <span class="history-day-number">{{ day_date.day }}</span>
                     {% if day_date.day in days_with_entries %}
-                    <span class="entry-indicator">●</span>
+                    <span class="history-entry-indicator">●</span>
                     {% endif %}
                     {% if day_date.day in days_with_tests %}
-                    <span class="test-indicator">★</span>
+                    <span class="test-indicator{% if selected_date and day_date == selected_date %} selected{% endif %}"></span>
                     {% endif %}
-                    <div class="day-actions">
+                    <div class="history-day-actions">
                         {% if can_edit %}
                             {% if username and user_id %}
-                            <a href="{% url 'today_user_date' username=username user_id=user_id date=day_date|date:'d-m-y' %}" class="edit-link" title="Edit this day">
+                            <a href="{% url 'today_user_date' username=username user_id=user_id date=day_date|date:'d-m-y' %}" class="history-edit-link" title="Edit this day">
                                 <span class="desktop-btn-icon edit-icon"></span>
                             </a>
                             {% else %}
-                            <a href="{% url 'today_date' date=day_date|date:'d-m-y' %}" class="edit-link" title="Edit this day">
+                            <a href="{% url 'today_date' date=day_date|date:'d-m-y' %}" class="history-edit-link" title="Edit this day">
                                 <span class="desktop-btn-icon edit-icon"></span>
                             </a>
                             {% endif %}
@@ -78,15 +78,15 @@
     
     <!-- Daily Data Display -->
     {% if selected_date %}
-    <div class="daily-data">
+    <div class="history-daily-data">
         <div class="date-header">
             <h3>{{ selected_date|date:"l, F d, Y" }}</h3>
-            <div class="export-buttons">
-                <a href="{% url 'export_template_date' date=selected_date|date:'d-m-y' %}" class="export-btn">
+            <div class="history-export-buttons">
+                <a href="{% url 'export_template_date' date=selected_date|date:'d-m-y' %}" class="history-export-btn">
                     <span class="desktop-btn-icon pdf-icon"></span>
                     Export PDF
                 </a>
-                <a href="{% url 'export_jpeg_date' date=selected_date|date:'d-m-y' %}" class="export-btn">
+                <a href="{% url 'export_jpeg_date' date=selected_date|date:'d-m-y' %}" class="history-export-btn">
                     <span class="desktop-btn-icon image-icon"></span>
                     Export JPEG
                 </a>
@@ -110,25 +110,25 @@
         {% endif %}
         
         {% if daily_data %}
-        <div class="daily-entries history-page">
+        <div class="history-daily-entries history-page">
             {% for entry in daily_data %}
             {% if entry.has_entry %}
-            <div class="entry-card">
-                <h4 class="subject-title">{{ entry.subject_name }}</h4>
+            <div class="history-entry-card">
+                <h4 class="history-subject-title">{{ entry.subject_name }}</h4>
                 <div class="entry-content-row">
                     <!-- Left side: Resources and Notes -->
                     <div class="left-content">
-                        <div class="entry-details">
+                        <div class="history-entry-details">
                             <!-- Resources section -->
                             {% if entry.book_name or entry.extras %}
                             <h5>Resources:</h5>
                             <!-- Main entry resource -->
                             {% if entry.book_name and entry.pages %}
-                            <div class="detail-row">
+                            <div class="history-detail-row">
                                 <strong>→</strong> {{ entry.book_name }} стр. {{ entry.pages }}
                             </div>
                             {% elif entry.book_name %}
-                            <div class="detail-row">
+                            <div class="history-detail-row">
                                 <strong>→</strong> {{ entry.book_name }}
                             </div>
                             {% endif %}
@@ -137,11 +137,11 @@
                             {% if entry.extras %}
                             {% for extra in entry.extras %}
                             {% if extra.book_name and extra.pages %}
-                            <div class="detail-row">
+                            <div class="history-detail-row">
                                 <strong>→</strong> {{ extra.book_name }} стр. {{ extra.pages }}
                             </div>
                             {% elif extra.book_name %}
-                            <div class="detail-row">
+                            <div class="history-detail-row">
                                 <strong>→</strong> {{ extra.book_name }}
                             </div>
                             {% endif %}
@@ -152,7 +152,7 @@
                             <!-- Notes (if any) -->
                             {% if entry.notes %}
                             <h5>Notes:</h5>
-                            <div class="detail-row rich-text-content">
+                            <div class="history-detail-row rich-text-content">
                                 {{ entry.notes|render_rich_text_safe }}
                             </div>
                             {% endif %}
@@ -168,11 +168,11 @@
                             <div class="homework-container">
                                 {% for homework in entry.homework %}
                                 {% if homework.book_name and homework.pages %}
-                                <div class="detail-row">
+                                <div class="history-detail-row">
                                     <strong>→</strong> {{ homework.book_name }} стр. {{ homework.pages }}
                                 </div>
                                 {% elif homework.book_name %}
-                                <div class="detail-row">
+                                <div class="history-detail-row">
                                     <strong>→</strong> {{ homework.book_name }}
                                 </div>
                                 {% endif %}
@@ -185,7 +185,7 @@
                         {% if entry.important_notes %}
                         <div class="important-notes-section">
                             <h5>Important Notes:</h5>
-                            <div class="detail-row rich-text-content">
+                            <div class="history-detail-row rich-text-content">
                                 {{ entry.important_notes|render_rich_text_safe }}
                             </div>
                         </div>

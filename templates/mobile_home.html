@@ -83,6 +83,42 @@
             </div>
         </div>
     </div>
+    
+    <!-- Mobile Add Test Section -->
+    <div class="mobile-management-section">
+        <div class="mobile-section-header" onclick="toggleMobileSection('add-test')">
+            <h3>Add Test</h3>
+            <span class="mobile-toggle-icon" id="mobile-toggle-add-test">▼</span>
+        </div>
+        <div class="mobile-section-content" id="mobile-content-add-test" style="display: none;">
+            <div class="mobile-test-chips-container" id="mobile-test-chips">
+                <!-- Saved tests will appear as chips here -->
+            </div>
+            <div class="mobile-test-form">
+                <form method="POST" action="{% url 'home' %}" id="mobile-test-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add_tests">
+                    <div class="mobile-form-group">
+                        <label for="mobile_test_date">Test Date:</label>
+                        <div class="mobile-date-input-wrapper" onclick="openMobileDatePicker()">
+                            <input type="date" name="test_date" id="mobile_test_date" required style="position: absolute; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 1; top: 0; left: 0;" data-firstdayofweek="1">
+                            <div class="mobile-date-display" id="mobile-date-display">Select Date</div>
+                        </div>
+                    </div>
+                    <div class="mobile-form-group">
+                        <label for="mobile_test_subject">Subject:</label>
+                        <select name="test_subject" id="mobile_test_subject" required>
+                            <option value="">Choose a subject...</option>
+                            {% for subject in subjects %}
+                            <option value="{{ subject.id }}">{{ subject.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="mobile-btn mobile-btn-primary">Save Test</button>
+                </form>
+            </div>
+        </div>
+    </div>
     {% endif %}
     
     
@@ -437,6 +473,11 @@ function toggleMobileSection(sectionId) {
     if (content.style.display === 'none') {
         content.style.display = 'block';
         icon.textContent = '▲';
+        
+        // Load existing tests when add-test section is opened
+        if (sectionId === 'add-test') {
+            loadMobileExistingTests();
+        }
     } else {
         content.style.display = 'none';
         icon.textContent = '▼';
@@ -759,5 +800,243 @@ document.addEventListener('keydown', function(e) {
         }
     }
 });
+
+// Mobile Test Functionality
+function openMobileDatePicker() {
+    const dateInput = document.getElementById('mobile_test_date');
+    if (dateInput) {
+        // Set first day of week to Monday (1 = Monday, 0 = Sunday)
+        try {
+            // Try different methods to set first day of week
+            if (dateInput.setAttribute) {
+                dateInput.setAttribute('data-firstdayofweek', '1');
+            }
+            if (dateInput.firstDayOfWeek !== undefined) {
+                dateInput.firstDayOfWeek = 1;
+            }
+            // Some browsers support this property
+            if (dateInput.setAttribute) {
+                dateInput.setAttribute('data-weekstart', '1');
+            }
+        } catch (e) {
+            console.log('First day of week setting not supported:', e);
+        }
+        
+        // Force focus and trigger the date picker
+        dateInput.focus();
+        if (dateInput.showPicker) {
+            dateInput.showPicker();
+        } else {
+            dateInput.click();
+        }
+    }
+}
+
+// Load existing tests when the section is opened
+function loadMobileExistingTests() {
+    console.log('Loading mobile existing tests...');
+    fetch('{% url "home" %}', {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => {
+        console.log('Tests response received:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Tests data received:', data);
+        if (data.tests) {
+            const chipsContainer = document.getElementById('mobile-test-chips');
+            console.log('Chips container found:', chipsContainer);
+            chipsContainer.innerHTML = '';
+            
+            console.log('Number of tests to display:', data.tests.length);
+            data.tests.forEach((test, index) => {
+                console.log(`Creating chip ${index + 1}:`, test);
+                const chip = document.createElement('div');
+                chip.className = 'mobile-test-chip';
+                chip.dataset.date = test.date;
+                chip.dataset.subjectId = test.subject_id;
+                chip.innerHTML = `
+                    <span class="mobile-chip-text">${test.subject_name} (<strong>${formatDateToDDMMYYYY(new Date(test.date))}</strong>)</span>
+                    <button type="button" class="mobile-chip-remove" onclick="removeMobileTestChip(this)">×</button>
+                `;
+                chipsContainer.appendChild(chip);
+            });
+            console.log('All test chips added to container');
+        } else {
+            console.log('No tests data received');
+        }
+    })
+    .catch(error => {
+        console.error('Error loading existing tests:', error);
+    });
+}
+
+function removeMobileTestChip(button) {
+    const chip = button.closest('.mobile-test-chip');
+    const date = chip.dataset.date;
+    const subjectId = chip.dataset.subjectId;
+    
+    // Convert date back to server format for deletion
+    const dateObj = parseDDMMYYYYToDate(formatDateToDDMMYYYY(new Date(date)));
+    if (dateObj) {
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        const serverDate = `${year}-${month}-${day}`;
+        
+        deleteMobileTestFromServer(serverDate, subjectId, chip);
+    }
+}
+
+function deleteMobileTestFromServer(date, subjectId, chip) {
+    fetch('{% url "home" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: `action=delete_test&test_date=${encodeURIComponent(date)}&test_subject=${encodeURIComponent(subjectId)}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            chip.remove();
+        } else {
+            console.error('Delete failed:', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting test:', error);
+    });
+}
+
+function formatDateToDDMMYYYY(date) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+}
+
+function parseDDMMYYYYToDate(dateStr) {
+    const parts = dateStr.split('.');
+    if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        return new Date(year, month, day);
+    }
+    return null;
+}
+
+// Update mobile date display when date changes
+document.addEventListener('DOMContentLoaded', function() {
+    const dateInput = document.getElementById('mobile_test_date');
+    const dateDisplay = document.getElementById('mobile-date-display');
+    
+    if (dateInput && dateDisplay) {
+        // Set first day of week to Monday (1 = Monday, 0 = Sunday)
+        try {
+            // Try multiple methods to set first day of week
+            dateInput.setAttribute('data-firstdayofweek', '1');
+            dateInput.setAttribute('data-weekstart', '1');
+            dateInput.setAttribute('data-firstday', '1');
+            
+            // Some browsers support these properties
+            if (dateInput.firstDayOfWeek !== undefined) {
+                dateInput.firstDayOfWeek = 1;
+            }
+            if (dateInput.weekStart !== undefined) {
+                dateInput.weekStart = 1;
+            }
+            if (dateInput.firstDay !== undefined) {
+                dateInput.firstDay = 1;
+            }
+            
+            console.log('Set first day of week to Monday');
+        } catch (e) {
+            console.log('First day of week setting not supported:', e);
+        }
+        
+        // Add click event listener to the date input as backup
+        dateInput.addEventListener('click', function(e) {
+            e.stopPropagation();
+            this.focus();
+            if (this.showPicker) {
+                this.showPicker();
+            }
+        });
+        
+        dateInput.addEventListener('change', function() {
+            if (this.value) {
+                const date = new Date(this.value);
+                dateDisplay.textContent = formatDateToDDMMYYYY(date);
+                dateDisplay.classList.add('has-date');
+            } else {
+                dateDisplay.textContent = 'Select Date';
+                dateDisplay.classList.remove('has-date');
+            }
+        });
+    }
+    
+    // Handle mobile test form submission
+    const mobileTestForm = document.getElementById('mobile-test-form');
+    if (mobileTestForm) {
+        console.log('Mobile test form found, adding event listener');
+        mobileTestForm.addEventListener('submit', function(e) {
+            console.log('Form submitted, preventing default');
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const dateInput = document.getElementById('mobile_test_date');
+            const subjectSelect = document.getElementById('mobile_test_subject');
+            const dateDisplay = document.getElementById('mobile-date-display');
+            
+            console.log('Form data:', {
+                date: formData.get('test_date'),
+                subject: formData.get('test_subject'),
+                action: formData.get('action')
+            });
+            
+            fetch('{% url "home" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: formData
+            })
+            .then(response => {
+                console.log('Response received:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Response data:', data);
+                if (data.success) {
+                    console.log('Test saved successfully, clearing form and reloading tests');
+                    // Clear the form fields
+                    dateInput.value = '';
+                    subjectSelect.value = '';
+                    dateDisplay.textContent = 'Select Date';
+                    dateDisplay.classList.remove('has-date');
+                    
+                    // Reload existing tests to show the new one
+                    loadMobileExistingTests();
+                } else {
+                    console.error('Save failed:', data.error || data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error saving test:', error);
+            });
+        });
+    } else {
+        console.error('Mobile test form not found!');
+    }
+});
+
 </script>
 {% endblock %}

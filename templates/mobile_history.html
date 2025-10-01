@@ -59,6 +59,9 @@
                     {% if day_date.day in days_with_entries %}
                     <span class="mobile-entry-indicator">●</span>
                     {% endif %}
+                    {% if day_date.month == month and day_date.day in days_with_tests %}
+                    <span class="mobile-test-indicator{% if selected_date and day_date == selected_date %} selected{% endif %}"></span>
+                    {% endif %}
                 </div>
                 {% endfor %}
             </div>
@@ -88,6 +91,17 @@
                 </a>
             </div>
         </div>
+        
+        <!-- Mobile Tests Display -->
+        {% if tests_data %}
+        <div class="mobile-tests-section">
+            {% for test in tests_data %}
+            <div class="mobile-test-item">
+                <strong>Контролно по {{ test.subject_name }}</strong>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
         
         {% if daily_data %}
         <div class="mobile-daily-entries">
@@ -199,8 +213,8 @@ function navigateMonth(direction) {
     }
     
     // Navigate to the new month
-    {% if username and user_id %}
-    window.location.href = `{% url 'history_user' username=username user_id=user_id %}?year=${newYear}&month=${newMonth}`;
+    {% if target_user %}
+    window.location.href = `{% url 'history_user' username=target_user.username user_id=target_user.id %}?year=${newYear}&month=${newMonth}`;
     {% else %}
     window.location.href = `{% url 'history_user' username=user.username user_id=user.id %}?year=${newYear}&month=${newMonth}`;
     {% endif %}

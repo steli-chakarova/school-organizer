@@ -98,20 +98,34 @@
         </div>
         <div id="test-entries">
             <div class="test-entry">
-                <div class="form-row">
-                    <input type="text" name="test_date" required class="test-date-input" placeholder="dd.mm.yyyy" readonly>
-                    <select name="test_subject" required class="test-subject-select">
-                        <option value="">Select Subject</option>
-                        {% for subject in subjects %}
-                        <option value="{{ subject.id }}">{{ subject.name }}</option>
-                        {% endfor %}
-                    </select>
+                <div class="test-selection-container">
+                    <div class="date-selection">
+                        <label class="selection-label">Select Date:</label>
+                        <div class="calendar-container">
+                            <div class="calendar-header">
+                                <button type="button" class="calendar-nav-btn" onclick="changeMonth(-1)">‹</button>
+                                <span class="calendar-month-year" id="calendar-month-year"></span>
+                                <button type="button" class="calendar-nav-btn" onclick="changeMonth(1)">›</button>
+                            </div>
+                            <div class="calendar-grid" id="calendar-grid">
+                                <!-- Calendar will be populated by JavaScript -->
+                                <div style="padding: 20px; text-align: center; color: #666;">
+                                    Loading calendar...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="selected-tests-container">
+                        <label class="selection-label">Selected Tests:</label>
+                        <div class="selected-tests-list" id="selected-tests-list">
+                            <!-- Selected tests will appear here as labels -->
+                        </div>
+                    </div>
+                </div>
+                <div class="test-entry-actions">
                     <button type="button" class="remove-test-btn" onclick="removeTestEntry(this)" style="display: none;">×</button>
                 </div>
             </div>
-        </div>
-        <div class="form-actions">
-            <button type="button" class="btn btn-secondary" onclick="addTestEntry()">Add more</button>
         </div>
     </div>
     {% endif %}
@@ -440,6 +454,16 @@
         </div>
     </div>
 </div>
+
+<script>
+// Set subjects data from Django template
+window.availableSubjects = [
+    {% for subject in subjects %}
+    {id: {{ subject.id }}, name: "{{ subject.name|escapejs }}"}{% if not forloop.last %},{% endif %}
+    {% endfor %}
+];
+console.log('Subjects loaded:', window.availableSubjects);
+</script>
 
 <script>
 function toggleScheduleForm() {
@@ -925,47 +949,51 @@ function parseDDMMYYYYToDate(dateStr) {
     return null;
 }
 
+// Calendar and subject selection variables
+let currentCalendarDate = new Date();
+let selectedDate = null;
+let selectedSubject = null;
+
 // Test management functions
 function addTestEntry() {
     const testEntries = document.getElementById('test-entries');
     const newEntry = document.createElement('div');
     newEntry.className = 'test-entry';
     
-    // Get the subjects data from the first select (if it exists)
-    const firstSelect = testEntries.querySelector('select[name="test_subject"]');
-    let subjectsOptions = '';
-    if (firstSelect) {
-        // Copy all options from existing select
-        subjectsOptions = firstSelect.innerHTML;
-    } else {
-        // Fallback if no subjects exist yet - create basic structure
-        subjectsOptions = '<option value="">Select Subject</option>';
-    }
-    
-    // Get today's date in YYYY-MM-DD format
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    
-    // Format today's date as dd.mm.yyyy
-    const todayFormatted = formatDateToDDMMYYYY(today);
-    
     newEntry.innerHTML = `
-        <div class="form-row">
-            <input type="text" name="test_date" required class="test-date-input" value="${todayFormatted}" placeholder="dd.mm.yyyy" readonly>
-            <select name="test_subject" required class="test-subject-select">
-                ${subjectsOptions}
-            </select>
+        <div class="test-selection-container">
+            <div class="date-selection">
+                <label class="selection-label">Select Date:</label>
+                <div class="calendar-container">
+                    <div class="calendar-header">
+                        <button type="button" class="calendar-nav-btn" onclick="changeMonth(-1)">‹</button>
+                        <span class="calendar-month-year" id="calendar-month-year-${Date.now()}"></span>
+                        <button type="button" class="calendar-nav-btn" onclick="changeMonth(1)">›</button>
+                    </div>
+                    <div class="calendar-grid" id="calendar-grid-${Date.now()}">
+                        <!-- Calendar will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+            <div class="selected-tests-container">
+                <label class="selection-label">Selected Tests:</label>
+                <div class="selected-tests-list" id="selected-tests-list-${Date.now()}">
+                    <!-- Selected tests will appear here as labels -->
+                </div>
+            </div>
+        </div>
+        <div class="test-entry-actions">
             <button type="button" class="remove-test-btn" onclick="removeTestEntry(this)">×</button>
         </div>
     `;
     
     testEntries.appendChild(newEntry);
     
+    // Initialize calendar for this entry
+    initializeCalendar(newEntry);
+    
     // Show remove buttons for all entries if there's more than one
     updateTestRemoveButtons();
-    
-    // Add event listeners for dynamic saving
-    addTestEntryEventListeners(newEntry);
 }
 
 function removeTestEntry(button) {
@@ -987,26 +1015,283 @@ function updateTestRemoveButtons() {
     });
 }
 
-function addTestEntryEventListeners(testEntry) {
-    const dateInput = testEntry.querySelector('.test-date-input');
-    const subjectSelect = testEntry.querySelector('.test-subject-select');
+// Calendar functions
+function initializeCalendar(testEntry) {
+    console.log('Initializing calendar');
+    const calendarGrid = testEntry.querySelector('.calendar-grid');
+    const monthYearSpan = testEntry.querySelector('.calendar-month-year');
     
-    // Save test when both date and subject are filled
-    function saveTest() {
-        const date = dateInput.value;
-        const subjectId = subjectSelect.value;
-        
-        if (date && subjectId) {
-            saveTestToServer(date, subjectId);
-        }
+    console.log('Calendar grid:', calendarGrid);
+    console.log('Month year span:', monthYearSpan);
+    
+    if (!calendarGrid) {
+        console.error('Calendar grid not found!');
+        return;
     }
     
-    // Add click handler to open date picker
-    dateInput.addEventListener('click', function() {
-        openDatePicker(dateInput);
+    if (!monthYearSpan) {
+        console.error('Month year span not found!');
+        return;
+    }
+    
+    // Set current month/year
+    updateCalendarDisplay(monthYearSpan);
+    renderCalendar(calendarGrid, testEntry);
+    console.log('Calendar initialized successfully');
+}
+
+function changeMonth(direction) {
+    currentCalendarDate.setMonth(currentCalendarDate.getMonth() + direction);
+    
+    // Update all calendar displays
+    const monthYearSpans = document.querySelectorAll('.calendar-month-year');
+    const calendarGrids = document.querySelectorAll('.calendar-grid');
+    
+    monthYearSpans.forEach(span => updateCalendarDisplay(span));
+    calendarGrids.forEach((grid, index) => {
+        const testEntry = grid.closest('.test-entry');
+        renderCalendar(grid, testEntry);
+    });
+}
+
+function updateCalendarDisplay(monthYearSpan) {
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                       'July', 'August', 'September', 'October', 'November', 'December'];
+    monthYearSpan.textContent = `${monthNames[currentCalendarDate.getMonth()]} ${currentCalendarDate.getFullYear()}`;
+}
+
+function renderCalendar(calendarGrid, testEntry) {
+    const year = currentCalendarDate.getFullYear();
+    const month = currentCalendarDate.getMonth();
+    
+    // Clear previous content
+    calendarGrid.innerHTML = '';
+    
+    // Add day headers
+    const dayHeaders = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    dayHeaders.forEach(day => {
+        const dayHeader = document.createElement('div');
+        dayHeader.className = 'calendar-day-header';
+        dayHeader.textContent = day;
+        calendarGrid.appendChild(dayHeader);
     });
     
-    subjectSelect.addEventListener('change', saveTest);
+    // Get first day of month and number of days
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startDay = (firstDay.getDay() + 6) % 7; // Convert Sunday=0 to Monday=0
+    
+    // Add empty cells for days before month starts
+    for (let i = 0; i < startDay; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'calendar-day empty';
+        calendarGrid.appendChild(emptyCell);
+    }
+    
+    // Add days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dayCell = document.createElement('div');
+        dayCell.className = 'calendar-day';
+        dayCell.textContent = day;
+        dayCell.dataset.day = day;
+        dayCell.dataset.month = month;
+        dayCell.dataset.year = year;
+        
+        // Add click handler
+        dayCell.addEventListener('click', function(e) {
+            e.stopPropagation(); // Prevent event bubbling
+            console.log('Day cell clicked:', this.textContent);
+            console.log('testEntry for click:', testEntry);
+            selectDate(this, testEntry);
+        });
+        
+        console.log('Click handler added to day:', day);
+        
+        // Highlight today
+        const today = new Date();
+        if (day === today.getDate() && month === today.getMonth() && year === today.getFullYear()) {
+            dayCell.classList.add('today');
+        }
+        
+        calendarGrid.appendChild(dayCell);
+    }
+    
+}
+
+function selectDate(dayElement, testEntry) {
+    console.log('selectDate called with day:', dayElement.textContent);
+    console.log('testEntry:', testEntry);
+    
+    // Remove previous selection
+    const calendarGrid = testEntry.querySelector('.calendar-grid');
+    if (calendarGrid) {
+        calendarGrid.querySelectorAll('.calendar-day.selected').forEach(day => {
+            day.classList.remove('selected');
+        });
+    }
+    
+    // Add selection to clicked day
+    dayElement.classList.add('selected');
+    
+    // Get selected date
+    const day = parseInt(dayElement.dataset.day);
+    const month = parseInt(dayElement.dataset.month);
+    const year = parseInt(dayElement.dataset.year);
+    const selectedDate = new Date(year, month, day);
+    
+    // Store selected date in test entry
+    testEntry.dataset.selectedDate = formatDateToDDMMYYYY(selectedDate);
+    console.log('Selected date stored:', testEntry.dataset.selectedDate);
+    
+    // Show subject dropdown for this date
+    console.log('About to call showSubjectDropdown');
+    showSubjectDropdown(dayElement, testEntry);
+    console.log('showSubjectDropdown called');
+}
+
+function showSubjectDropdown(dayElement, testEntry) {
+    console.log('showSubjectDropdown called');
+    // Remove any existing dropdown
+    hideSubjectDropdown();
+    
+    // Get subjects data from global variable
+    const subjects = window.availableSubjects || [];
+    console.log('Available subjects:', subjects);
+    
+    if (subjects.length === 0) {
+        console.log('No subjects available, returning');
+        return;
+    }
+    
+    // Create dropdown
+    const dropdown = document.createElement('div');
+    dropdown.className = 'subject-dropdown';
+    dropdown.id = 'subject-dropdown';
+    
+    // Remove inline styles to use CSS classes
+    // The CSS will handle all styling
+    
+    const dropdownContent = document.createElement('div');
+    dropdownContent.className = 'subject-dropdown-content';
+    dropdownContent.style.padding = '8px 0';
+    
+    subjects.forEach(subject => {
+        const option = document.createElement('div');
+        option.className = 'subject-dropdown-option';
+        option.textContent = subject.name;
+        option.dataset.subjectId = subject.id;
+        option.dataset.subjectName = subject.name;
+        
+        // Use CSS classes for styling
+        
+        option.addEventListener('click', function(e) {
+            e.stopPropagation(); // Prevent event bubbling
+            selectSubjectFromDropdown(this, testEntry, dayElement);
+        });
+        
+        // Hover effects handled by CSS
+        
+        dropdownContent.appendChild(option);
+    });
+    
+    dropdown.appendChild(dropdownContent);
+    
+    // Position dropdown near the clicked day
+    const rect = dayElement.getBoundingClientRect();
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+    
+    dropdown.style.position = 'absolute';
+    dropdown.style.left = (rect.left + scrollLeft) + 'px';
+    dropdown.style.top = (rect.bottom + scrollTop + 5) + 'px';
+    dropdown.style.zIndex = '1000';
+    dropdown.style.display = 'block'; // Ensure it's visible
+    dropdown.style.visibility = 'visible'; // Ensure it's visible
+    
+    console.log('Dropdown positioned at:', rect.left + scrollLeft, rect.bottom + scrollTop + 5);
+    console.log('Dropdown element:', dropdown);
+    console.log('Dropdown computed style:', window.getComputedStyle(dropdown));
+    
+    // Add click event to prevent dropdown from closing when clicking on it
+    dropdown.addEventListener('click', function(e) {
+        e.stopPropagation();
+    });
+    
+    document.body.appendChild(dropdown);
+    console.log('Dropdown added to DOM');
+    console.log('Dropdown final position:', dropdown.getBoundingClientRect());
+    
+    // Close dropdown when clicking outside
+    setTimeout(() => {
+        document.addEventListener('click', function hideDropdownOnOutsideClick(e) {
+            if (!dropdown.contains(e.target)) {
+                hideSubjectDropdown();
+                document.removeEventListener('click', hideDropdownOnOutsideClick);
+            }
+        });
+    }, 100);
+}
+
+function hideSubjectDropdown() {
+    const dropdown = document.getElementById('subject-dropdown');
+    if (dropdown) {
+        dropdown.remove();
+    }
+    // Remove all click event listeners that might be related to dropdown hiding
+    document.removeEventListener('click', hideSubjectDropdown);
+}
+
+function selectSubjectFromDropdown(optionElement, testEntry, dayElement) {
+    const subjectId = optionElement.dataset.subjectId;
+    const subjectName = optionElement.dataset.subjectName;
+    const selectedDate = testEntry.dataset.selectedDate;
+    
+    // Create test label
+    createTestLabel(testEntry, selectedDate, subjectName, subjectId);
+    
+    // Hide dropdown
+    hideSubjectDropdown();
+    
+    // Save test to server and add chip immediately
+    saveTestToServer(selectedDate, subjectId, subjectName);
+}
+
+function createTestLabel(testEntry, date, subjectName, subjectId) {
+    const selectedTestsList = testEntry.querySelector('.selected-tests-list');
+    
+    const label = document.createElement('div');
+    label.className = 'test-label';
+    label.dataset.date = date;
+    label.dataset.subjectId = subjectId;
+    label.innerHTML = `
+        <span class="test-label-text">${subjectName} (${date})</span>
+        <button type="button" class="test-label-remove" onclick="removeTestLabel(this)">×</button>
+    `;
+    
+    selectedTestsList.appendChild(label);
+}
+
+function removeTestLabel(button) {
+    const label = button.closest('.test-label');
+    const date = label.dataset.date;
+    const subjectId = label.dataset.subjectId;
+    
+    // Convert date back to server format for deletion
+    const dateObj = parseDDMMYYYYToDate(date);
+    if (dateObj) {
+        const serverDate = dateObj.toISOString().split('T')[0];
+        deleteTestFromServer(serverDate, subjectId);
+    }
+    
+    // Remove the corresponding test chip
+    const chipsContainer = document.getElementById('test-chips');
+    const correspondingChip = chipsContainer.querySelector(`.test-chip[data-date="${date}"][data-subject-id="${subjectId}"]`);
+    if (correspondingChip) {
+        correspondingChip.remove();
+    }
+    
+    label.remove();
 }
 
 function openDatePicker(dateInput) {
@@ -1061,7 +1346,7 @@ function openDatePicker(dateInput) {
     }, 10000);
 }
 
-function saveTestToServer(date, subjectId) {
+function saveTestToServer(date, subjectId, subjectName = null) {
     // Convert dd.mm.yyyy to yyyy-mm-dd for server
     const dateObj = parseDDMMYYYYToDate(date);
     if (!dateObj) {
@@ -1082,17 +1367,14 @@ function saveTestToServer(date, subjectId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Show success indicator
-            showTestMessage(data.message, 'success');
-            // Add the test as a chip
-            addTestChip(date, subjectId);
+            // Add the test as a chip with subject name
+            addTestChip(date, subjectId, subjectName);
         } else {
-            showTestMessage(data.error, 'error');
+            console.error('Save failed:', data.error);
         }
     })
     .catch(error => {
         console.error('Error saving test:', error);
-        showTestMessage('Error saving test', 'error');
     });
 }
 
@@ -1127,17 +1409,26 @@ function showTestMessage(message, type) {
 }
 
 // Chip management functions
-function addTestChip(date, subjectId) {
+function addTestChip(date, subjectId, subjectName = null) {
     const chipsContainer = document.getElementById('test-chips');
-    const subjectSelect = document.querySelector('.test-subject-select');
-    const subjectName = subjectSelect.querySelector(`option[value="${subjectId}"]`).textContent;
+    
+    // Get subject name if not provided
+    if (!subjectName) {
+        const subjectSelect = document.querySelector('.test-subject-select');
+        if (subjectSelect) {
+            const option = subjectSelect.querySelector(`option[value="${subjectId}"]`);
+            subjectName = option ? option.textContent : 'Unknown Subject';
+        } else {
+            subjectName = 'Unknown Subject';
+        }
+    }
     
     const chip = document.createElement('div');
     chip.className = 'test-chip';
     chip.dataset.date = date;
     chip.dataset.subjectId = subjectId;
     chip.innerHTML = `
-        <span class="chip-text">${subjectName} (${date})</span>
+        <span class="chip-text">${subjectName} (<strong>${date}</strong>)</span>
         <button type="button" class="chip-remove" onclick="removeTestChip(this)">×</button>
     `;
     
@@ -1152,17 +1443,28 @@ function removeTestChip(button) {
     const date = chip.dataset.date;
     const subjectId = chip.dataset.subjectId;
     
+    console.log('Removing test chip:', { date, subjectId });
+    
     // Convert date back to server format for deletion
     const dateObj = parseDDMMYYYYToDate(date);
     if (dateObj) {
-        const serverDate = dateObj.toISOString().split('T')[0];
-        deleteTestFromServer(serverDate, subjectId);
+        // Use UTC methods to avoid timezone issues
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        const serverDate = `${year}-${month}-${day}`;
+        console.log('Server date format:', serverDate);
+        
+        // Delete from server first, then remove from DOM
+        deleteTestFromServer(serverDate, subjectId, chip);
+    } else {
+        console.error('Invalid date format:', date);
     }
-    
-    chip.remove();
 }
 
-function deleteTestFromServer(date, subjectId) {
+function deleteTestFromServer(date, subjectId, chip) {
+    console.log('Sending delete request:', { date, subjectId });
+    
     fetch('{% if is_admin_view %}{% url "home_user" target_user.username target_user.id %}{% else %}{% url "home" %}{% endif %}', {
         method: 'POST',
         headers: {
@@ -1173,15 +1475,26 @@ function deleteTestFromServer(date, subjectId) {
     })
     .then(response => response.json())
     .then(data => {
+        console.log('Delete response:', data);
         if (data.success) {
-            showTestMessage('Test deleted successfully!', 'success');
+            // Remove from DOM only after successful server deletion
+            const originalDate = chip.dataset.date;
+            
+            // Remove the corresponding test label
+            const testEntries = document.getElementById('test-entries');
+            const correspondingLabel = testEntries.querySelector(`.test-label[data-date="${originalDate}"][data-subject-id="${subjectId}"]`);
+            if (correspondingLabel) {
+                correspondingLabel.remove();
+            }
+            
+            // Remove the chip
+            chip.remove();
         } else {
-            showTestMessage(data.error, 'error');
+            console.error('Delete failed:', data.error);
         }
     })
     .catch(error => {
         console.error('Error deleting test:', error);
-        showTestMessage('Error deleting test', 'error');
     });
 }
 
@@ -1198,16 +1511,18 @@ function clearTestForm() {
     }
 }
 
-// Initialize the first test entry with today's date and event listeners
+// Initialize the first test entry with calendar
 document.addEventListener('DOMContentLoaded', function() {
-    // Set today's date for the first entry
-    const firstDateInput = document.querySelector('.test-date-input');
-    if (firstDateInput) {
-        const today = new Date();
-        firstDateInput.value = formatDateToDDMMYYYY(today);
-        
-        // Add event listeners to the first entry
-        addTestEntryEventListeners(firstDateInput.closest('.test-entry'));
+    console.log('DOM Content Loaded');
+    console.log('Available subjects:', window.availableSubjects);
+    
+    // Initialize calendar for the first entry
+    const firstTestEntry = document.querySelector('.test-entry');
+    if (firstTestEntry) {
+        console.log('First test entry found, initializing calendar');
+        initializeCalendar(firstTestEntry);
+    } else {
+        console.log('No test entry found');
     }
     
     // Load existing tests as chips
@@ -1215,8 +1530,26 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function loadExistingTests() {
-    // This would load existing tests from the server
-    // For now, we'll implement this when we add the backend support
+    // Load existing tests from the server and display them as chips
+    fetch('{% if is_admin_view %}{% url "home_user" target_user.username target_user.id %}{% else %}{% url "home" %}{% endif %}', {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.tests) {
+            data.tests.forEach(test => {
+                const dateStr = formatDateToDDMMYYYY(new Date(test.date));
+                addTestChip(dateStr, test.subject_id, test.subject_name);
+            });
+        }
+    })
+    .catch(error => {
+        console.error('Error loading existing tests:', error);
+    });
 }
 </script>
 {% endblock %}

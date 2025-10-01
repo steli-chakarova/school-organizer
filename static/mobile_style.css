@@ -1949,3 +1949,279 @@ body {
     }
 }
 
+/* Mobile Test Section Styles */
+.mobile-test-chips-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 15px;
+    min-height: 40px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.mobile-test-chip {
+    display: inline-flex;
+    align-items: center;
+    background-color: #e9ecef;
+    color: #495057;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 500;
+    border: 1px solid #dee2e6;
+    transition: all 0.2s ease;
+    min-width: 180px;
+    justify-content: center;
+}
+
+.mobile-test-chip:hover {
+    background-color: #dee2e6;
+    border-color: #adb5bd;
+}
+
+.mobile-chip-text {
+    flex: 1;
+    text-align: center;
+}
+
+.mobile-chip-remove {
+    background: none;
+    color: #dc3545;
+    border: none;
+    border-radius: 0;
+    width: auto;
+    height: auto;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-left: 15px;
+    display: inline;
+}
+
+.mobile-chip-remove:hover {
+    color: #c82333;
+    background: none;
+}
+
+.mobile-test-form {
+    background: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    margin: 20px 0;
+    border-left: 4px solid #ffd700;
+}
+
+.mobile-test-form h3 {
+    color: #2c2c2c;
+    margin-bottom: 15px;
+    font-size: 1.5em;
+}
+
+.mobile-test-form .mobile-form-group {
+    margin-bottom: 15px;
+}
+
+.mobile-test-form .mobile-form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: #2c2c2c;
+}
+
+.mobile-test-form .mobile-form-group input,
+.mobile-test-form .mobile-form-group select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 16px;
+    background-color: #fff;
+}
+
+.mobile-test-form .mobile-form-group input:focus,
+.mobile-test-form .mobile-form-group select:focus {
+    outline: none;
+    border-color: #2c2c2c;
+    box-shadow: 0 0 0 2px rgba(44, 44, 44, 0.2);
+}
+
+.mobile-test-form .mobile-btn {
+    width: 100%;
+    padding: 12px;
+    background: #2c2c2c;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.mobile-test-form .mobile-btn:hover {
+    background: #1a1a1a;
+}
+
+.mobile-test-form .mobile-btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.mobile-date-input-wrapper {
+    position: relative;
+    width: 100%;
+    height: 50px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #fff;
+    cursor: pointer;
+    transition: border-color 0.3s;
+}
+
+.mobile-date-input-wrapper:hover {
+    border-color: #2c2c2c;
+}
+
+.mobile-date-input-wrapper:focus-within {
+    border-color: #2c2c2c;
+    box-shadow: 0 0 0 2px rgba(44, 44, 44, 0.2);
+}
+
+.mobile-date-display {
+    position: absolute;
+    top: 50%;
+    left: 10px;
+    transform: translateY(-50%);
+    color: #495057;
+    font-size: 16px;
+    pointer-events: none;
+    user-select: none;
+}
+
+.mobile-date-display.has-date {
+    color: #2c2c2c;
+    font-weight: 500;
+}
+
+/* Try to set first day of week to Monday via CSS (browser support varies) */
+#mobile_test_date {
+    --first-day-of-week: 1;
+}
+
+/* Some browsers might respect this */
+#mobile_test_date[data-firstdayofweek="1"] {
+    --week-start: 1;
+}
+
+/* Mobile History Test Indicators */
+.mobile-test-indicator {
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    width: 20px;
+    height: 20px;
+    background-image: url('/static/images/wired-flat-400-bookmark-hover-flutter.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+    will-change: background-image;
+    z-index: 2;
+}
+
+.mobile-calendar-day:hover .mobile-test-indicator {
+    background-image: url('/static/images/wired-flat-400-bookmark-hover-flutter.gif');
+    opacity: 1;
+    transition: none;
+}
+
+.mobile-test-indicator.selected {
+    background-image: url('/static/images/wired-flat-400-bookmark-hover-flutter(1).gif');
+    opacity: 1;
+    transition: none;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3));
+}
+
+/* Mobile Tests Display */
+.mobile-tests-section {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 8px;
+    padding: 8px 15px;
+    margin: 15px 0;
+}
+
+.mobile-tests-title {
+    color: #856404;
+    font-size: 1.1em;
+    font-weight: 600;
+    margin: 0 0 10px 0;
+}
+
+.mobile-test-item {
+    color: #856404;
+    font-size: 1em;
+    margin: 5px 0;
+    padding: 5px 0;
+}
+
+/* Mobile Input Fields - Taller Textareas */
+#mobile_important_notes,
+.important-notes-textarea,
+.notes-textarea,
+#mobile_notes {
+    min-height: 200px !important;
+    padding: 15px !important;
+    font-size: 16px !important;
+    line-height: 1.5 !important;
+}
+
+/* Firefox Mobile TipTap Editor Fixes */
+@-moz-document url-prefix() {
+    .mobile-tiptap-wrapper {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+    
+    .mobile-tiptap-editor {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        min-height: 120px !important;
+    }
+    
+    .mobile-tiptap-toolbar {
+        display: flex !important;
+        visibility: visible !important;
+    }
+}
+
+/* Mobile TipTap Editor Visibility Fixes */
+.mobile-tiptap-wrapper {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    min-height: 150px !important;
+}
+
+.mobile-tiptap-editor {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    min-height: 120px !important;
+    padding: 15px !important;
+}
+
+.mobile-tiptap-toolbar {
+    display: flex !important;
+    visibility: visible !important;
+    flex-wrap: wrap !important;
+}
+
