@@ -1324,7 +1324,9 @@ function openDatePicker(dateInput) {
     // Handle the change event
     tempInput.addEventListener('change', function() {
         if (tempInput.value) {
-            const selectedDate = new Date(tempInput.value);
+            // Parse the date string directly to avoid timezone issues
+            const [year, month, day] = tempInput.value.split('-').map(Number);
+            const selectedDate = new Date(year, month - 1, day);
             dateInput.value = formatDateToDDMMYYYY(selectedDate);
             
             // Trigger save if subject is also selected
@@ -1347,14 +1349,18 @@ function openDatePicker(dateInput) {
 }
 
 function saveTestToServer(date, subjectId, subjectName = null) {
-    // Convert dd.mm.yyyy to yyyy-mm-dd for server
+    // Convert dd.mm.yyyy to yyyy-mm-dd for server using local timezone
     const dateObj = parseDDMMYYYYToDate(date);
     if (!dateObj) {
         showTestMessage('Invalid date format', 'error');
         return;
     }
     
-    const serverDate = dateObj.toISOString().split('T')[0];
+    // Use local timezone methods to avoid date shifting
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    const serverDate = `${year}-${month}-${day}`;
     
     fetch('{% if is_admin_view %}{% url "home_user" target_user.username target_user.id %}{% else %}{% url "home" %}{% endif %}', {
         method: 'POST',
