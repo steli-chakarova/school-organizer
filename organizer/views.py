@@ -573,22 +573,29 @@ class TodayView(View):
         else:  # Teacher - only their own data
             weekly_subjects = WeeklySchedule.objects.filter(day_of_week=today_weekday, created_by=target_user, is_active=True, subject__isnull=False).select_related('subject').order_by('position')
         
-        # Get existing daily entries
-        existing_entries = DailyEntry.objects.filter(date=today_date, created_by=target_user).select_related('subject', 'book')
+        # Get existing daily entries ordered by position
+        existing_entries = DailyEntry.objects.filter(date=today_date, created_by=target_user).select_related('subject', 'book').order_by('position')
         
         # Build today_subjects: show weekly schedule in order, replace with daily entries when they exist
         today_subjects = []
         
-        # Create a map of daily entries by subject ID for quick lookup
+        # Create a map of daily entries by subject ID and position
         daily_entries_by_subject = {}
+        additional_entries = []  # For position > 0 entries
+        
         for entry in existing_entries:
-            if entry.subject.id not in daily_entries_by_subject:
-                daily_entries_by_subject[entry.subject.id] = []
-            daily_entries_by_subject[entry.subject.id].append(entry)
+            if entry.position == 0:
+                # Position 0 entries belong to the weekly schedule
+                if entry.subject.id not in daily_entries_by_subject:
+                    daily_entries_by_subject[entry.subject.id] = []
+                daily_entries_by_subject[entry.subject.id].append(entry)
+            else:
+                # Position > 0 are additional entries (duplicates)
+                additional_entries.append(entry)
         
         # Go through weekly schedule in order
         for weekly_schedule in weekly_subjects:
-            # Check if this subject has daily entries
+            # Check if this subject has daily entries with position 0
             if weekly_schedule.subject.id in daily_entries_by_subject:
                 # Replace with daily entry (keep the same position)
                 entry = daily_entries_by_subject[weekly_schedule.subject.id][0]  # Take first entry
@@ -597,26 +604,41 @@ class TodayView(View):
                     'position': weekly_schedule.position,
                     'day_of_week': today_weekday,
                     'is_active': True,
-                    'created_by': target_user
+                    'created_by': target_user,
+                    'entry_position': entry.position  # Store the entry position
                 })()
                 today_subjects.append(mock_schedule)
             else:
-                # No daily entry for this subject, use weekly schedule
+                # No daily entry for this subject, use weekly schedule but add entry_position
+                weekly_schedule.entry_position = 0  # Default position for weekly schedule
                 today_subjects.append(weekly_schedule)
         
-        # Add any daily entries that are NOT in the weekly schedule (new subjects)
+        # Add any position 0 daily entries that are NOT in the weekly schedule (new subjects)
         weekly_subject_ids = {schedule.subject.id for schedule in weekly_subjects}
         for entry in existing_entries:
-            if entry.subject.id not in weekly_subject_ids:
+            if entry.position == 0 and entry.subject.id not in weekly_subject_ids:
                 # This is a new subject not in weekly schedule - add it at the end
                 mock_schedule = type('MockSchedule', (), {
                     'subject': entry.subject,
                     'position': 999,  # High position for new subjects
                     'day_of_week': today_weekday,
                     'is_active': True,
-                    'created_by': target_user
+                    'created_by': target_user,
+                    'entry_position': entry.position
                 })()
                 today_subjects.append(mock_schedule)
+        
+        # Add all additional entries (position > 0) at the end
+        for entry in additional_entries:
+            mock_schedule = type('MockSchedule', (), {
+                'subject': entry.subject,
+                'position': 1000 + entry.position,  # High position for duplicate entries
+                'day_of_week': today_weekday,
+                'is_active': True,
+                'created_by': target_user,
+                'entry_position': entry.position
+            })()
+            today_subjects.append(mock_schedule)
         existing_extras = []
         existing_homework = []
         
@@ -718,44 +740,68 @@ class TodayView(View):
                     return redirect('today')
         
         # Handle new subject addition
-        if is_new_subject and subject_id == 'new':
-            new_subject_id = request.POST.get('new_subject_id')
-            if not new_subject_id:
-                messages.error(request, "Please select a subject to add.")
-                if date:
-                    if username and user_id:
-                        return redirect('today_user_date', username=username, user_id=user_id, date=date)
+        if is_new_subject:
+            if subject_id == 'new':
+                new_subject_id = request.POST.get('new_subject_id')
+                if not new_subject_id:
+                    messages.error(request, "Please select a subject to add.")
+                    if date:
+                        if username and user_id:
+                            return redirect('today_user_date', username=username, user_id=user_id, date=date)
+                        else:
+                            return redirect('today_date', date=date)
                     else:
-                        return redirect('today_date', date=date)
-                else:
-                    if username and user_id:
-                        return redirect('today_user', username=username, user_id=user_id)
+                        if username and user_id:
+                            return redirect('today_user', username=username, user_id=user_id)
+                        else:
+                            return redirect('today')
+                
+                # Create a mock schedule for the new subject
+                try:
+                    new_subject = Subject.objects.get(id=new_subject_id, created_by=target_user)
+                    subject_schedule = type('MockSchedule', (), {
+                        'subject': new_subject,
+                        'position': 999,  # High position for new subjects
+                        'day_of_week': today_weekday,
+                        'is_active': True,
+                        'created_by': target_user
+                    })()
+                    subject_id = new_subject_id  # Update subject_id for processing
+                except Subject.DoesNotExist:
+                    messages.error(request, "Selected subject not found.")
+                    if date:
+                        if username and user_id:
+                            return redirect('today_user_date', username=username, user_id=user_id, date=date)
+                        else:
+                            return redirect('today_date', date=date)
                     else:
-                        return redirect('today')
-            
-            # Create a mock schedule for the new subject
-            try:
-                new_subject = Subject.objects.get(id=new_subject_id, created_by=target_user)
-                subject_schedule = type('MockSchedule', (), {
-                    'subject': new_subject,
-                    'position': 999,  # High position for new subjects
-                    'day_of_week': today_weekday,
-                    'is_active': True,
-                    'created_by': target_user
-                })()
-                subject_id = new_subject_id  # Update subject_id for processing
-            except Subject.DoesNotExist:
-                messages.error(request, "Selected subject not found.")
-                if date:
-                    if username and user_id:
-                        return redirect('today_user_date', username=username, user_id=user_id, date=date)
+                        if username and user_id:
+                            return redirect('today_user', username=username, user_id=user_id)
+                        else:
+                            return redirect('today')
+            else:
+                # This is a new subject addition with a specific subject ID (from dropdown selection)
+                try:
+                    new_subject = Subject.objects.get(id=subject_id, created_by=target_user)
+                    subject_schedule = type('MockSchedule', (), {
+                        'subject': new_subject,
+                        'position': 999,  # High position for new subjects
+                        'day_of_week': today_weekday,
+                        'is_active': True,
+                        'created_by': target_user
+                    })()
+                except Subject.DoesNotExist:
+                    messages.error(request, "Selected subject not found.")
+                    if date:
+                        if username and user_id:
+                            return redirect('today_user_date', username=username, user_id=user_id, date=date)
+                        else:
+                            return redirect('today_date', date=date)
                     else:
-                        return redirect('today_date', date=date)
-                else:
-                    if username and user_id:
-                        return redirect('today_user', username=username, user_id=user_id)
-                    else:
-                        return redirect('today')
+                        if username and user_id:
+                            return redirect('today_user', username=username, user_id=user_id)
+                        else:
+                            return redirect('today')
         else:
             # Handle existing subject (original logic)
             # Get the original subject from the weekly schedule
@@ -807,11 +853,21 @@ class TodayView(View):
             
             # Get main entry data
             if is_new_subject:
-                # For new subjects, use the 'new' suffix
-                book_id = request.POST.get('book_new')
-                pages = request.POST.get('pages_new')
-                notes = request.POST.get('notes_new')
-                important_notes = request.POST.get('important_notes_new')
+                # For new subjects, check if it's the old 'new' format or the new subject_id format
+                if subject_id == 'new':
+                    # Old format: use 'new' suffix
+                    book_id = request.POST.get('book_new')
+                    pages = request.POST.get('pages_new')
+                    notes = request.POST.get('notes_new')
+                    important_notes = request.POST.get('important_notes_new')
+                else:
+                    # New format: use subject_id with position
+                    position = request.POST.get('position', 0)
+                    unique_id = f"{subject_id}-{position}" if int(position) > 0 else subject_id
+                    book_id = request.POST.get(f'book_{unique_id}')
+                    pages = request.POST.get(f'pages_{unique_id}')
+                    notes = request.POST.get(f'notes_{unique_id}')
+                    important_notes = request.POST.get(f'important_notes_{unique_id}')
             else:
                 # For existing subjects, use the subject_id suffix
                 book_id = request.POST.get(f'book_{subject_id}')
@@ -821,11 +877,22 @@ class TodayView(View):
             
             # Check if there's any data for this subject (including homework and important notes)
             if is_new_subject:
-                has_homework = any(
-                    request.POST.get(f'homework_book_new_{i}') or 
-                    request.POST.get(f'homework_pages_new_{i}')
-                    for i in range(10)  # Check up to 10 homework entries
-                )
+                if subject_id == 'new':
+                    # Old format: use 'new' suffix
+                    has_homework = any(
+                        request.POST.get(f'homework_book_new_{i}') or 
+                        request.POST.get(f'homework_pages_new_{i}')
+                        for i in range(10)  # Check up to 10 homework entries
+                    )
+                else:
+                    # New format: use subject_id with position
+                    position = request.POST.get('position', 0)
+                    unique_id = f"{subject_id}-{position}" if int(position) > 0 else subject_id
+                    has_homework = any(
+                        request.POST.get(f'homework_book_{unique_id}_{i}') or 
+                        request.POST.get(f'homework_pages_{unique_id}_{i}')
+                        for i in range(10)  # Check up to 10 homework entries
+                    )
             else:
                 has_homework = any(
                 request.POST.get(f'homework_book_{subject_id}_{i}') or 
@@ -856,17 +923,21 @@ class TodayView(View):
                         # Delete the main entry
                         old_entry.delete()
                 
+                # Get position from request (default to 0 for scheduled subjects)
+                position = int(request.POST.get('position', 0))
+                
                 # Get or create main entry for this subject (using daily_subject which may be different from weekly schedule)
                 # Store the original weekly schedule subject ID for mapping purposes
                 main_entry, created = DailyEntry.objects.get_or_create(
                     date=today_date,
                     subject=daily_subject,
+                    created_by=target_user,
+                    position=position,
                     defaults={
                         'book': book,
                         'pages': pages if pages else None,
                         'notes': notes if notes else None,
-                        'important_notes': important_notes if important_notes else None,
-                        'created_by': target_user
+                        'important_notes': important_notes if important_notes else None
                     }
                 )
                 
@@ -892,8 +963,16 @@ class TodayView(View):
                 extra_count = 0
                 while True:
                     if is_new_subject:
-                        extra_book_id = request.POST.get(f'extra_book_new_{extra_count}')
-                        extra_pages = request.POST.get(f'extra_pages_new_{extra_count}')
+                        if subject_id == 'new':
+                            # Old format: use 'new' suffix
+                            extra_book_id = request.POST.get(f'extra_book_new_{extra_count}')
+                            extra_pages = request.POST.get(f'extra_pages_new_{extra_count}')
+                        else:
+                            # New format: use subject_id with position
+                            position = request.POST.get('position', 0)
+                            unique_id = f"{subject_id}-{position}" if int(position) > 0 else subject_id
+                            extra_book_id = request.POST.get(f'extra_book_{unique_id}_{extra_count}')
+                            extra_pages = request.POST.get(f'extra_pages_{unique_id}_{extra_count}')
                     else:
                         extra_book_id = request.POST.get(f'extra_book_{subject_id}_{extra_count}')
                         extra_pages = request.POST.get(f'extra_pages_{subject_id}_{extra_count}')
@@ -925,8 +1004,16 @@ class TodayView(View):
                     homework_count = 0
                     while True:
                         if is_new_subject:
-                            homework_book_id = request.POST.get(f'homework_book_new_{homework_count}')
-                            homework_pages = request.POST.get(f'homework_pages_new_{homework_count}')
+                            if subject_id == 'new':
+                                # Old format: use 'new' suffix
+                                homework_book_id = request.POST.get(f'homework_book_new_{homework_count}')
+                                homework_pages = request.POST.get(f'homework_pages_new_{homework_count}')
+                            else:
+                                # New format: use subject_id with position
+                                position = request.POST.get('position', 0)
+                                unique_id = f"{subject_id}-{position}" if int(position) > 0 else subject_id
+                                homework_book_id = request.POST.get(f'homework_book_{unique_id}_{homework_count}')
+                                homework_pages = request.POST.get(f'homework_pages_{unique_id}_{homework_count}')
                         else:
                             homework_book_id = request.POST.get(f'homework_book_{subject_id}_{homework_count}')
                             homework_pages = request.POST.get(f'homework_pages_{subject_id}_{homework_count}')
@@ -1184,12 +1271,13 @@ class HistoryView(View):
         weekly_subject_ids = set()
         for schedule in weekly_schedules:
             weekly_subject_ids.add(schedule.subject.id)
-            # Try to find a daily entry for this subject and date
+            # Try to find a daily entry for this subject and date with position 0
             try:
                 daily_entry = DailyEntry.objects.get(
                     date=selected_date,
                     subject=schedule.subject,
-                    created_by=user_to_filter
+                    created_by=user_to_filter,
+                    position=0
                 )
                 
                 # Get extra entries for this main entry
@@ -1212,13 +1300,13 @@ class HistoryView(View):
                     })
                 
                 # Only add this subject if it has meaningful content
+                # A card needs actual content, not just a book selection
                 has_content = (
-                    daily_entry.book or  # Has a book
                     daily_entry.pages or  # Has pages
                     daily_entry.notes or  # Has notes
                     daily_entry.important_notes or  # Has important notes
-                    extra_books or  # Has extra books
-                    homework_books  # Has homework
+                    len(extra_books) > 0 or  # Has extra books
+                    len(homework_books) > 0  # Has homework
                 )
                 
                 if has_content:
@@ -1236,55 +1324,78 @@ class HistoryView(View):
                 # No daily entry for this subject, skip it
                 continue
         
-        # Add any daily entries that are NOT in the weekly schedule (new subjects)
+        # Add any daily entries that are NOT in the weekly schedule OR have position > 0
+        # Order by position first, then by id (creation order) for newly created subjects
         all_daily_entries = DailyEntry.objects.filter(
             date=selected_date,
             created_by=user_to_filter
-        ).select_related('subject', 'book')
+        ).select_related('subject', 'book').order_by('position', 'id')
         
         for daily_entry in all_daily_entries:
-            if daily_entry.subject.id not in weekly_subject_ids:
-                # This is a new subject not in weekly schedule - add it at the end
-                # Get extra entries for this main entry
-                extras = DailyExtra.objects.filter(daily_entry=daily_entry).select_related('book')
-                extra_books = []
-                for extra in extras:
-                    extra_books.append({
-                        'book_name': extra.book.title if extra.book else "Unknown Book",
-                        'pages': extra.pages,
-                        'notes': extra.notes
-                    })
+            # Skip position 0 entries that were already added from weekly schedule
+            if daily_entry.position == 0 and daily_entry.subject.id in weekly_subject_ids:
+                continue
                 
-                # Get homework entries for this main entry
-                homework_entries = HomeworkEntry.objects.filter(daily_entry=daily_entry).select_related('book')
-                homework_books = []
-                for homework in homework_entries:
-                    homework_books.append({
-                        'book_name': homework.book.title if homework.book else "Unknown Book",
-                        'pages': homework.pages
-                    })
+            # This is either a new subject (position 0, not in schedule) or a duplicate (position > 0)
+            # Get extra entries for this main entry
+            extras = DailyExtra.objects.filter(daily_entry=daily_entry).select_related('book')
+            extra_books = []
+            for extra in extras:
+                extra_books.append({
+                    'book_name': extra.book.title if extra.book else "Unknown Book",
+                    'pages': extra.pages,
+                    'notes': extra.notes
+                })
+            
+            # Get homework entries for this main entry
+            homework_entries = HomeworkEntry.objects.filter(daily_entry=daily_entry).select_related('book')
+            homework_books = []
+            for homework in homework_entries:
+                homework_books.append({
+                    'book_name': homework.book.title if homework.book else "Unknown Book",
+                    'pages': homework.pages
+                })
+            
+            # Only add this subject if it has meaningful content
+            # A card needs actual content, not just a book selection
+            # Check for actual content, not just empty strings or whitespace
+            
+            # Helper function to check if text has meaningful content (not just HTML tags)
+            def has_meaningful_content(text):
+                if not text:
+                    return False
+                # Strip whitespace and check if it's just HTML tags
+                stripped = text.strip()
+                if not stripped:
+                    return False
+                # Check for common empty HTML patterns
+                empty_patterns = ['<br>', '<br/>', '<br />', '<p></p>', '<p><br></p>', '<p><br/></p>']
+                return stripped not in empty_patterns
+            
+            has_content = (
+                (daily_entry.pages and daily_entry.pages.strip()) or  # Has pages with content
+                has_meaningful_content(daily_entry.notes) or  # Has notes with meaningful content
+                has_meaningful_content(daily_entry.important_notes) or  # Has important notes with meaningful content
+                len(extra_books) > 0 or  # Has extra books
+                len(homework_books) > 0  # Has homework
+            )
+            
+            if has_content:
+                # Add position number to subject name for duplicates
+                subject_display_name = daily_entry.subject.name
+                if daily_entry.position > 0:
+                    subject_display_name = f"{daily_entry.subject.name} #{daily_entry.position + 1}"
                 
-                # Only add this subject if it has meaningful content
-                has_content = (
-                    daily_entry.book or  # Has a book
-                    daily_entry.pages or  # Has pages
-                    daily_entry.notes or  # Has notes
-                    daily_entry.important_notes or  # Has important notes
-                    extra_books or  # Has extra books
-                    homework_books  # Has homework
-                )
-                
-                if has_content:
-                    daily_data.append({
-                        'subject_name': daily_entry.subject.name,
-                        'book_name': daily_entry.book.title if daily_entry.book else None,
-                        'pages': daily_entry.pages,
-                        'notes': daily_entry.notes,
-                        'important_notes': daily_entry.important_notes,
-                        'extras': extra_books,
-                        'homework': homework_books,
-                        'has_entry': True
-                    })
+                daily_data.append({
+                    'subject_name': subject_display_name,
+                    'book_name': daily_entry.book.title if daily_entry.book else None,
+                    'pages': daily_entry.pages,
+                    'notes': daily_entry.notes,
+                    'important_notes': daily_entry.important_notes,
+                    'extras': extra_books,
+                    'homework': homework_books,
+                    'has_entry': True
+                })
         
         return daily_data
     
@@ -1470,15 +1581,18 @@ class ExportJPEGView(View):
         scheduled_subjects = WeeklySchedule.objects.filter(day_of_week=selected_date.weekday() + 1, is_active=True).select_related('subject').order_by('position')
         
         daily_data = []
+        weekly_subject_ids = set()
         
         for schedule in scheduled_subjects:
             # Skip if schedule.subject is None
             if not schedule.subject:
                 continue
+            
+            weekly_subject_ids.add(schedule.subject.id)
                 
-            # Try to find an existing entry for this subject and date
+            # Try to find an existing entry for this subject and date with position 0
             try:
-                main_entry = DailyEntry.objects.get(date=selected_date, subject=schedule.subject)
+                main_entry = DailyEntry.objects.get(date=selected_date, subject=schedule.subject, position=0)
                 
                 # Get extra entries
                 extras = []
@@ -1497,13 +1611,13 @@ class ExportJPEGView(View):
                     })
                 
                 # Only add this subject if it has meaningful content
+                # A card needs actual content, not just a book selection
                 has_content = (
-                    main_entry.book or  # Has a book
                     main_entry.pages or  # Has pages
                     main_entry.notes or  # Has notes
                     main_entry.important_notes or  # Has important notes
-                    extras or  # Has extra books
-                    homework_books  # Has homework
+                    len(extras) > 0 or  # Has extra books
+                    len(homework_books) > 0  # Has homework
                 )
                 
                 if has_content:
@@ -1520,6 +1634,70 @@ class ExportJPEGView(View):
             except DailyEntry.DoesNotExist:
                 # No entry for this subject - skip it (don't add empty subjects)
                 continue
+        
+        # Add all entries with position > 0 (duplicates) and position 0 entries not in schedule
+        # Order by position first, then by id (creation order) for newly created subjects
+        all_entries = DailyEntry.objects.filter(date=selected_date).select_related('subject', 'book').order_by('position', 'id')
+        
+        for main_entry in all_entries:
+            # Skip position 0 entries that were already added from weekly schedule
+            if main_entry.position == 0 and main_entry.subject.id in weekly_subject_ids:
+                continue
+                
+            # Get extra entries
+            extras = []
+            for extra in main_entry.extras.all():
+                extras.append({
+                    'book_name': extra.book.title if extra.book else 'No book selected',
+                    'pages': extra.pages or ''
+                })
+            
+            # Get homework entries
+            homework_books = []
+            for hw in main_entry.homework_entries.all():
+                homework_books.append({
+                    'book_name': hw.book.title if hw.book else 'No book selected',
+                    'pages': hw.pages or ''
+                })
+            
+            # Helper function to check if text has meaningful content (not just HTML tags)
+            def has_meaningful_content(text):
+                if not text:
+                    return False
+                # Strip whitespace and check if it's just HTML tags
+                stripped = text.strip()
+                if not stripped:
+                    return False
+                # Check for common empty HTML patterns
+                empty_patterns = ['<br>', '<br/>', '<br />', '<p></p>', '<p><br></p>', '<p><br/></p>']
+                return stripped not in empty_patterns
+            
+            # Only add this subject if it has meaningful content
+            # A card needs actual content, not just a book selection
+            has_content = (
+                (main_entry.pages and main_entry.pages.strip()) or  # Has pages with content
+                has_meaningful_content(main_entry.notes) or  # Has notes with meaningful content
+                has_meaningful_content(main_entry.important_notes) or  # Has important notes with meaningful content
+                len(extras) > 0 or  # Has extra books
+                len(homework_books) > 0  # Has homework
+            )
+            
+            if has_content:
+                # Add position number to subject name for duplicates
+                subject_display_name = main_entry.subject.name
+                if main_entry.position > 0:
+                    subject_display_name = f"{main_entry.subject.name} #{main_entry.position + 1}"
+                
+                daily_data.append({
+                    'subject_name': subject_display_name,
+                    'book_name': main_entry.book.title if main_entry.book else None,
+                    'pages': main_entry.pages,
+                    'notes': main_entry.notes,
+                    'important_notes': main_entry.important_notes,
+                    'extras': extras,
+                    'homework': homework_books,
+                    'has_entry': True
+                })
         
         return daily_data
 
@@ -1581,14 +1759,18 @@ class ExportTemplatePDFView(View):
         scheduled_subjects = WeeklySchedule.objects.filter(day_of_week=selected_date.weekday() + 1, is_active=True).select_related("subject").order_by("position")
         
         daily_data = []
+        weekly_subject_ids = set()
         
         for schedule in scheduled_subjects:
             # Include all subjects regardless of user authentication
             if schedule.subject:
-                # Get daily entry for this subject and date (show all entries regardless of creator)
+                weekly_subject_ids.add(schedule.subject.id)
+                
+                # Get daily entry for this subject and date with position 0 (show all entries regardless of creator)
                 daily_entry = DailyEntry.objects.filter(
                     subject=schedule.subject,
-                    date=selected_date
+                    date=selected_date,
+                    position=0
                 ).first()
                 
                 has_entry = daily_entry is not None
@@ -1625,13 +1807,13 @@ class ExportTemplatePDFView(View):
                 important_notes = daily_entry.important_notes if daily_entry else ""
                 
                 # Only add this subject if it has meaningful content
+                # A card needs actual content, not just a book selection
                 has_content = (
-                    book_name or  # Has a book
                     pages or  # Has pages
                     notes or  # Has notes
                     important_notes or  # Has important notes
-                    extras or  # Has extra books
-                    homework  # Has homework
+                    len(extras) > 0 or  # Has extra books
+                    len(homework) > 0  # Has homework
                 )
                 
                 if has_content:
@@ -1646,6 +1828,81 @@ class ExportTemplatePDFView(View):
                         'important_notes': important_notes,
                         'created_by': schedule.created_by
                     })
+        
+        # Add all entries with position > 0 (duplicates) and position 0 entries not in schedule
+        # Order by position first, then by id (creation order) for newly created subjects
+        all_entries = DailyEntry.objects.filter(date=selected_date).select_related('subject', 'book').order_by('position', 'id')
+        
+        for daily_entry in all_entries:
+            # Skip position 0 entries that were already added from weekly schedule
+            if daily_entry.position == 0 and daily_entry.subject.id in weekly_subject_ids:
+                continue
+            
+            # Get extras
+            extras = []
+            if daily_entry:
+                for extra in daily_entry.extras.all():
+                    extra_data = {
+                        'book_name': extra.book.title if extra.book else "",
+                        'pages': extra.pages or ""
+                    }
+                    extras.append(extra_data)
+            
+            # Get homework
+            homework = []
+            if daily_entry:
+                for hw in daily_entry.homework_entries.all():
+                    hw_data = {
+                        'book_name': hw.book.title if hw.book else "",
+                        'pages': hw.pages or ""
+                    }
+                    homework.append(hw_data)
+            
+            # Get notes and important notes
+            notes = daily_entry.notes if daily_entry else ""
+            important_notes = daily_entry.important_notes if daily_entry else ""
+            book_name = daily_entry.book.title if daily_entry and daily_entry.book else ""
+            pages = daily_entry.pages or "" if daily_entry else ""
+            
+            # Helper function to check if text has meaningful content (not just HTML tags)
+            def has_meaningful_content(text):
+                if not text:
+                    return False
+                # Strip whitespace and check if it's just HTML tags
+                stripped = text.strip()
+                if not stripped:
+                    return False
+                # Check for common empty HTML patterns
+                empty_patterns = ['<br>', '<br/>', '<br />', '<p></p>', '<p><br></p>', '<p><br/></p>']
+                return stripped not in empty_patterns
+            
+            # Only add this subject if it has meaningful content
+            # A card needs actual content, not just a book selection
+            has_content = (
+                (pages and pages.strip()) or  # Has pages with content
+                has_meaningful_content(notes) or  # Has notes with meaningful content
+                has_meaningful_content(important_notes) or  # Has important notes with meaningful content
+                len(extras) > 0 or  # Has extra books
+                len(homework) > 0  # Has homework
+            )
+            
+            if has_content:
+                # Add position number to subject name for duplicates
+                subject_display_name = daily_entry.subject.name
+                if daily_entry.position > 0:
+                    subject_display_name = f"{daily_entry.subject.name} #{daily_entry.position + 1}"
+                
+                daily_data.append({
+                    'subject_name': subject_display_name,
+                    'has_entry': True,
+                    'book_name': book_name,
+                    'pages': pages,
+                    'extras': extras,
+                    'homework': homework,
+                    'notes': notes,
+                    'important_notes': important_notes,
+                    'created_by': daily_entry.created_by
+                })
         
         return daily_data
     
@@ -1767,6 +2024,13 @@ class TodayAutoSaveAPIView(View):
             if not subject_id:
                 return JsonResponse({'error': 'Subject ID required'}, status=400)
             
+            # Get position (default to 0 for scheduled subjects)
+            try:
+                position_val = data.get('position', 0)
+                position = int(position_val) if position_val not in [None, ''] else 0
+            except (ValueError, TypeError):
+                position = 0
+            
             # Get form data
             book_id = data.get('book_id')
             pages = data.get('pages')
@@ -1809,11 +2073,12 @@ class TodayAutoSaveAPIView(View):
                 except Book.DoesNotExist:
                     pass  # book will remain None
             
-            # Create or update daily entry
+            # Create or update daily entry with position
             daily_entry, created = DailyEntry.objects.get_or_create(
                 subject=subject,
                 date=today_date,
                 created_by=target_user,
+                position=position,
                 defaults={
                     'notes': notes, 
                     'important_notes': important_notes,
@@ -1918,6 +2183,184 @@ class SubjectsBooksAPIView(View):
             })
         
         return JsonResponse({'subjects': data})
+    
+    def post(self, request):
+        """Create a new subject or book"""
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+        
+        try:
+            data = json.loads(request.body)
+            action = data.get('action')
+            
+            # Check if admin is managing another user's data
+            target_user = request.user  # Default to current user
+            if request.user.is_admin() and 'target_user_id' in request.session:
+                try:
+                    target_user = User.objects.get(id=request.session['target_user_id'])
+                except User.DoesNotExist:
+                    pass  # Fall back to current user
+            
+            if action == 'create_subject':
+                name = data.get('name', '').strip()
+                if not name:
+                    return JsonResponse({'success': False, 'error': 'Subject name is required'})
+                
+                subject, created = Subject.objects.get_or_create(
+                    name=name,
+                    created_by=target_user
+                )
+                return JsonResponse({
+                    'success': True,
+                    'subject': {
+                        'id': subject.id,
+                        'name': subject.name
+                    }
+                })
+            
+            elif action == 'create_book':
+                subject_id = data.get('subject_id')
+                title = data.get('title', '').strip()
+                
+                if not subject_id or not title:
+                    return JsonResponse({'success': False, 'error': 'Subject and book title are required'})
+                
+                try:
+                    subject = Subject.objects.get(id=subject_id, created_by=target_user)
+                    book, created = Book.objects.get_or_create(
+                        subject=subject,
+                        title=title,
+                        defaults={'created_by': target_user}
+                    )
+                    return JsonResponse({
+                        'success': True,
+                        'book': {
+                            'id': book.id,
+                            'title': book.title
+                        }
+                    })
+                except Subject.DoesNotExist:
+                    return JsonResponse({'success': False, 'error': 'Subject not found'})
+            
+            else:
+                return JsonResponse({'success': False, 'error': 'Invalid action'})
+                
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    
+    def put(self, request):
+        """Rename a subject or book"""
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+        
+        try:
+            data = json.loads(request.body)
+            action = data.get('action')
+            
+            # Check if admin is managing another user's data
+            target_user = request.user  # Default to current user
+            if request.user.is_admin() and 'target_user_id' in request.session:
+                try:
+                    target_user = User.objects.get(id=request.session['target_user_id'])
+                except User.DoesNotExist:
+                    pass  # Fall back to current user
+            
+            if action == 'rename_subject':
+                subject_id = data.get('id')
+                new_name = data.get('name', '').strip()
+                
+                if not subject_id or not new_name:
+                    return JsonResponse({'success': False, 'error': 'Subject ID and name are required'})
+                
+                try:
+                    subject = Subject.objects.get(id=subject_id, created_by=target_user)
+                    subject.name = new_name
+                    subject.save()
+                    return JsonResponse({
+                        'success': True,
+                        'name': subject.name
+                    })
+                except Subject.DoesNotExist:
+                    return JsonResponse({'success': False, 'error': 'Subject not found or access denied'})
+            
+            elif action == 'rename_book':
+                book_id = data.get('id')
+                new_title = data.get('title', '').strip()
+                
+                if not book_id or not new_title:
+                    return JsonResponse({'success': False, 'error': 'Book ID and title are required'})
+                
+                try:
+                    book = Book.objects.get(id=book_id, created_by=target_user)
+                    book.title = new_title
+                    book.save()
+                    return JsonResponse({
+                        'success': True,
+                        'title': book.title
+                    })
+                except Book.DoesNotExist:
+                    return JsonResponse({'success': False, 'error': 'Book not found or access denied'})
+            
+            else:
+                return JsonResponse({'success': False, 'error': 'Invalid action'})
+                
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    
+    def delete(self, request):
+        """Delete a subject or book"""
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+        
+        try:
+            data = json.loads(request.body)
+            action = data.get('action')
+            
+            # Check if admin is managing another user's data
+            target_user = request.user  # Default to current user
+            if request.user.is_admin() and 'target_user_id' in request.session:
+                try:
+                    target_user = User.objects.get(id=request.session['target_user_id'])
+                except User.DoesNotExist:
+                    pass  # Fall back to current user
+            
+            if action == 'delete_subject':
+                subject_id = data.get('id')
+                
+                if not subject_id:
+                    return JsonResponse({'success': False, 'error': 'Subject ID is required'})
+                
+                try:
+                    subject = Subject.objects.get(id=subject_id, created_by=target_user)
+                    subject.delete()
+                    return JsonResponse({'success': True, 'message': 'Subject deleted successfully'})
+                except Subject.DoesNotExist:
+                    return JsonResponse({'success': False, 'error': 'Subject not found or access denied'})
+            
+            elif action == 'delete_book':
+                book_id = data.get('id')
+                
+                if not book_id:
+                    return JsonResponse({'success': False, 'error': 'Book ID is required'})
+                
+                try:
+                    book = Book.objects.get(id=book_id, created_by=target_user)
+                    book.delete()
+                    return JsonResponse({'success': True, 'message': 'Book deleted successfully'})
+                except Book.DoesNotExist:
+                    return JsonResponse({'success': False, 'error': 'Book not found or access denied'})
+            
+            else:
+                return JsonResponse({'success': False, 'error': 'Invalid action'})
+                
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
     
 
 class NoAccessView(View):

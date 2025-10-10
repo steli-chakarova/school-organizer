@@ -25,20 +25,23 @@
     <!-- Test button -->
     
     <div class="subjects-container today-page">
+        <!-- Debug: Total entries: {{ existing_entries|length }} -->
         {% for subject_schedule in today_subjects %}
             {% if subject_schedule.subject %}
-            <div class="subject-card collapsible-card" data-subject-id="{{ subject_schedule.subject.id }}">
-                <div class="card-header" onclick="toggleCard({{ subject_schedule.subject.id }})">
-                    <h3 class="subject-name">{{ subject_schedule.subject.name }}</h3>
+            <!-- Debug: Processing subject {{ subject_schedule.subject.id }} with position {{ subject_schedule.entry_position }} -->
+            <div class="subject-card collapsible-card" data-subject-id="{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}" data-base-subject-id="{{ subject_schedule.subject.id }}" data-position="{{ subject_schedule.entry_position|default:0 }}">
+                <div class="card-header" onclick="toggleCard('{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}')">
+                    <h3 class="subject-name">{{ subject_schedule.subject.name }}{% if subject_schedule.entry_position > 0 %} #{{ subject_schedule.entry_position|add:1 }}{% endif %}</h3>
                     <div class="header-controls">
                         <span class="toggle-icon">▼</span>
                     </div>
                 </div>
-            <div class="card-content" id="content-{{ subject_schedule.subject.id }}" style="display: none;">
+            <div class="card-content" id="content-{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}" style="display: none;">
             {% if can_edit %}
             <form method="POST" action="{% if request.resolver_match.url_name == 'today_user_date' %}{% url 'today_user_date' username=request.resolver_match.kwargs.username user_id=request.resolver_match.kwargs.user_id date=request.resolver_match.kwargs.date %}{% elif request.resolver_match.url_name == 'today_user' %}{% url 'today_user' username=request.resolver_match.kwargs.username user_id=request.resolver_match.kwargs.user_id %}{% elif request.resolver_match.url_name == 'today_date' %}{% url 'today_date' date=request.resolver_match.kwargs.date %}{% else %}{% url 'today' %}{% endif %}" class="subject-form">
                 {% csrf_token %}
                 <input type="hidden" name="subject_id" value="{{ subject_schedule.subject.id }}">
+                <input type="hidden" name="position" value="{{ subject_schedule.entry_position|default:0 }}">
                 
             
             <!-- Containers Row -->
@@ -48,15 +51,13 @@
                 <div class="form-fields-row">
                     <div class="form-group">
                         <label>Book:</label>
-                        <select name="book_{{ subject_schedule.subject.id }}" class="book-select">
+                        <select name="book_{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}" class="book-select">
                             <option value="">Select a book</option>
                             {% for book in books_by_subject|lookup:subject_schedule.subject.id %}
                             <option value="{{ book.id }}"
-                                {% for entry in existing_entries %}
-                                    {% if entry.subject.id == subject_schedule.subject.id and entry.book and entry.book.id == book.id %}
-                                    selected
-                                    {% endif %}
-                                {% endfor %}>
+                                {% with entry=existing_entries|get_entry_data:subject_schedule %}
+                                    {% if entry and entry.book and entry.book.id == book.id %}selected{% endif %}
+                                {% endwith %}>
                                 {{ book.title }}
                             </option>
                             {% endfor %}
@@ -65,23 +66,23 @@
                     
                     <div class="form-group">
                         <label>Pages:</label>
-                        <input type="text" name="pages_{{ subject_schedule.subject.id }}" 
+                        <input type="text" name="pages_{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}" 
                                placeholder="e.g., 45-50" class="pages-input"
-                               value="{% for entry in existing_entries %}{% if entry.subject.id == subject_schedule.subject.id %}{{ entry.pages|default:'' }}{% endif %}{% endfor %}">
+                               value="{% with entry=existing_entries|get_entry_data:subject_schedule %}{{ entry.pages|default:'' }}{% endwith %}">
                     </div>
                 </div>
                 
                 <!-- Extra entries container -->
-                <div class="extra-entries" id="extra-{{ subject_schedule.subject.id }}">
+                <div class="extra-entries" id="extra-{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}">
                 {% for entry in existing_entries %}
-                    {% if entry.subject.id == subject_schedule.subject.id %}
+                    {% if entry.subject.id == subject_schedule.subject.id and entry.position == subject_schedule.entry_position %}
                         {% for extra in existing_extras %}
                             {% if extra.daily_entry.id == entry.id %}
                             <div class="entry-row extra-entry">
                                 <div class="form-fields-row">
                                     <div class="form-group">
                                         <label>Book:</label>
-                                        <select name="extra_book_{{ subject_schedule.subject.id }}_{{ forloop.counter0 }}" class="book-select">
+                                        <select name="extra_book_{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}_{{ forloop.counter0 }}" class="book-select">
                                             <option value="">Select a book</option>
                                             {% for book in books_by_subject|lookup:subject_schedule.subject.id %}
                                             <option value="{{ book.id }}"
@@ -94,7 +95,7 @@
                                     
                                     <div class="form-group">
                                         <label>Pages:</label>
-                                        <input type="text" name="extra_pages_{{ subject_schedule.subject.id }}_{{ forloop.counter0 }}" 
+                                        <input type="text" name="extra_pages_{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}_{{ forloop.counter0 }}" 
                                                placeholder="e.g., 45-50" class="pages-input"
                                                value="{{ extra.pages|default:'' }}">
                                     </div>
@@ -108,7 +109,7 @@
                 {% endfor %}
                 </div>
                 
-                <button type="button" class="add-more-btn" onclick="addMoreEntry({{ subject_schedule.subject.id }})">
+                <button type="button" class="add-more-btn" onclick="addMoreEntry('{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}')">
                     + Add more
                 </button>
             </div>
@@ -117,10 +118,12 @@
                 <div class="notes-container">
                     <div class="form-group">
                         <label>Notes:</label>
-                        <textarea name="notes_{{ subject_schedule.subject.id }}" 
-                                  id="notes_{{ subject_schedule.subject.id }}"
+                        <textarea name="notes_{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}" 
+                                  id="notes_{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}"
                                   placeholder="Enter notes for this subject..." 
-                                  class="notes-textarea">{% for entry in existing_entries %}{% if entry.subject.id == subject_schedule.subject.id %}{{ entry.notes|default:'' }}{% endif %}{% endfor %}</textarea>
+                                  class="notes-textarea">{% with entry=existing_entries|get_entry_data:subject_schedule %}{{ entry.notes|default:'' }}{% endwith %}</textarea>
+                        <!-- Debug: Subject ID: {{ subject_schedule.subject.id }}, Position: {{ subject_schedule.entry_position }} -->
+                        <!-- Debug: Matching entries: {% for entry in existing_entries %}{% if entry.subject.id == subject_schedule.subject.id and entry.position == subject_schedule.entry_position %}Entry {{ entry.id }} ({{ entry.notes|default:'empty' }}), {% endif %}{% endfor %} -->
                     </div>
                 </div>
             </div>
@@ -130,16 +133,16 @@
                 <!-- Homework section -->
                 <div class="homework-section">
                 <h4>Homework</h4>
-                <div class="homework-entries" id="homework-{{ subject_schedule.subject.id }}">
+                <div class="homework-entries" id="homework-{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}">
                     {% for entry in existing_entries %}
-                        {% if entry.subject.id == subject_schedule.subject.id %}
+                        {% if entry.subject.id == subject_schedule.subject.id and entry.position == subject_schedule.entry_position %}
                             {% for homework in existing_homework %}
                                 {% if homework.daily_entry.id == entry.id %}
                                 <div class="entry-row homework-entry">
                                     <div class="form-fields-row">
                                         <div class="form-group">
                                             <label>Book:</label>
-                                            <select name="homework_book_{{ subject_schedule.subject.id }}_{{ forloop.counter0 }}" class="book-select">
+                                            <select name="homework_book_{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}_{{ forloop.counter0 }}" class="book-select">
                                                 <option value="">Select a book</option>
                                                 {% for book in books_by_subject|lookup:subject_schedule.subject.id %}
                                                 <option value="{{ book.id }}"
@@ -152,7 +155,7 @@
                                         
                                         <div class="form-group">
                                             <label>Pages:</label>
-                                            <input type="text" name="homework_pages_{{ subject_schedule.subject.id }}_{{ forloop.counter0 }}" 
+                                            <input type="text" name="homework_pages_{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}_{{ forloop.counter0 }}" 
                                                    placeholder="e.g., 45-50" class="pages-input"
                                                    value="{{ homework.pages|default:'' }}">
                                         </div>
@@ -166,7 +169,7 @@
                     {% endfor %}
                 </div>
                 
-                    <button type="button" class="add-homework-btn" onclick="addHomeworkEntry({{ subject_schedule.subject.id }})">
+                    <button type="button" class="add-homework-btn" onclick="addHomeworkEntry('{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}')">
                         + Add homework
                     </button>
                 </div>
@@ -175,17 +178,15 @@
                 <div class="important-notes-section">
                 <h4>Important Notes:</h4>
                     <div class="form-group">
-                        <textarea name="important_notes_{{ subject_schedule.subject.id }}" 
-                                  id="important_notes_{{ subject_schedule.subject.id }}"
+                        <textarea name="important_notes_{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}" 
+                                  id="important_notes_{{ subject_schedule.subject.id }}{% if subject_schedule.entry_position > 0 %}-{{ subject_schedule.entry_position }}{% endif %}"
                                   class="important-notes-textarea" 
-                                  placeholder="Enter any important notes for this subject...">{% for entry in existing_entries %}{% if entry.subject.id == subject_schedule.subject.id %}{{ entry.important_notes|default:"" }}{% endif %}{% endfor %}</textarea>
+                                  placeholder="Enter any important notes for this subject...">{% with entry=existing_entries|get_entry_data:subject_schedule %}{{ entry.important_notes|default:"" }}{% endwith %}</textarea>
+                        <!-- Debug: Subject ID: {{ subject_schedule.subject.id }}, Position: {{ subject_schedule.entry_position }} -->
                     </div>
                 </div>
             </div>
             
-            <div class="form-actions">
-                <button type="submit" class="submit-btn">Save {{ subject_schedule.subject.name }}</button>
-            </div>
             </form>
             {% else %}
             <!-- Read-only view of the data -->
@@ -201,98 +202,26 @@
         <!-- Add New Subject Card -->
         {% if can_edit %}
         <div class="subject-card collapsible-card add-new-subject-card" data-subject-id="new">
-            <div class="card-header">
+            <div class="card-header" onclick="toggleAddNewSubject()" style="cursor: pointer;">
                 <h3 class="subject-name">+ Add New Subject</h3>
                 <div class="header-controls">
-                    <span class="toggle-icon" onclick="toggleCard('new')">▼</span>
+                    <span class="toggle-icon">▼</span>
                 </div>
             </div>
             <div class="card-content" id="content-new" style="display: none;">
-                <form method="POST" action="{% if request.resolver_match.url_name == 'today_user_date' %}{% url 'today_user_date' username=request.resolver_match.kwargs.username user_id=request.resolver_match.kwargs.user_id date=request.resolver_match.kwargs.date %}{% elif request.resolver_match.url_name == 'today_user' %}{% url 'today_user' username=request.resolver_match.kwargs.username user_id=request.resolver_match.kwargs.user_id %}{% elif request.resolver_match.url_name == 'today_date' %}{% url 'today_date' date=request.resolver_match.kwargs.date %}{% else %}{% url 'today' %}{% endif %}" class="subject-form">
-                    {% csrf_token %}
-                    <input type="hidden" name="subject_id" value="new">
-                    <input type="hidden" name="is_new_subject" value="true">
-                    
-                    <!-- Subject Selection -->
-                    <div class="form-group">
-                        <label>Select Subject:</label>
-                        <select name="new_subject_id" id="new_subject_select" class="subject-select">
+                <!-- Subject Selection Dropdown at Top -->
+                <div class="form-group" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                    <label style="font-weight: bold; font-size: 15px; margin-bottom: 10px; display: block;">Select Subject:</label>
+                    <select id="new_subject_select" class="subject-select" style="width: 100%; padding: 10px; font-size: 14px; border: 2px solid #ffc107;">
                             <option value="">Choose a subject...</option>
                             {% for subject in subjects %}
                             <option value="{{ subject.id }}">{{ subject.name }}</option>
                             {% endfor %}
                         </select>
+                    <p style="margin-top: 8px; color: #666; font-size: 12px; font-style: italic;">
+                        Select a subject to create a card. You can add the same subject multiple times.
+                    </p>
                     </div>
-                    
-                    <!-- Containers Row -->
-                    <div class="containers-row">
-                        <!-- Book and Pages Container -->
-                        <div class="book-pages-container">
-                            <div class="form-fields-row">
-                                <div class="form-group">
-                                    <label>Book:</label>
-                                    <select name="book_new" class="book-select" id="book_select_new">
-                                        <option value="">Select a book</option>
-                                    </select>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label>Pages:</label>
-                                    <input type="text" name="pages_new" 
-                                           placeholder="e.g., 45-50" class="pages-input">
-                                </div>
-                            </div>
-                            
-                            <!-- Extra entries container -->
-                            <div class="extra-entries" id="extra-new">
-                            </div>
-                            
-                            <button type="button" class="add-more-btn" onclick="addMoreEntry('new')">
-                                + Add more
-                            </button>
-                        </div>
-                        
-                        <!-- Notes Container -->
-                        <div class="notes-container">
-                            <div class="form-group">
-                                <label>Notes:</label>
-                                <textarea name="notes_new" 
-                                          id="notes_new"
-                                          placeholder="Enter notes for this subject..." 
-                                          class="notes-textarea"></textarea>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Homework and Important Notes Row -->
-                    <div class="homework-important-row">
-                        <!-- Homework section -->
-                        <div class="homework-section">
-                            <h4>Homework</h4>
-                            <div class="homework-entries" id="homework-new">
-                            </div>
-                            
-                            <button type="button" class="add-homework-btn" onclick="addHomeworkEntry('new')">
-                                + Add homework
-                            </button>
-                        </div>
-                        
-                        <!-- Important notes section -->
-                        <div class="important-notes-section">
-                            <h4>Important Notes:</h4>
-                            <div class="form-group">
-                                <textarea name="important_notes_new" 
-                                          id="important_notes_new"
-                                          class="important-notes-textarea" 
-                                          placeholder="Enter any important notes for this subject..."></textarea>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="form-actions">
-                        <button type="submit" class="submit-btn" id="save_new_subject_btn" disabled>Save Subject</button>
-                    </div>
-                </form>
             </div>
         </div>
         {% endif %}
@@ -354,16 +283,23 @@ function getBookOptions(subjectId) {
         const mainSelect = document.getElementById('book_select_new');
         return mainSelect ? mainSelect.innerHTML : '<option value="">Select a book</option>';
     } else {
-        // For existing subject forms
-        const form = document.querySelector('input[name="subject_id"][value="' + subjectId + '"]').closest('form');
-        const mainSelect = form.querySelector('select[name^="book_"]');
+        // For existing subject forms (handle both regular IDs and unique IDs like "5-1")
+        // Find the card by data-subject-id
+        const card = document.querySelector(`[data-subject-id="${subjectId}"]`);
+        if (card) {
+            const mainSelect = card.querySelector('select[name^="book_"]');
         return mainSelect ? mainSelect.innerHTML : '<option value="">Select a book</option>';
+        }
+        return '<option value="">Select a book</option>';
     }
 }
 
 function addMoreEntry(subjectId) {
     const container = document.getElementById('extra-' + subjectId);
-    if (!container) return;
+    if (!container) {
+        console.error('Container not found for extra-' + subjectId);
+        return;
+    }
     
     const count = container.children.length;
     const newEntry = extraEntryTemplate(subjectId, count);
@@ -376,7 +312,10 @@ function addMoreEntry(subjectId) {
 
 function addHomeworkEntry(subjectId) {
     const container = document.getElementById('homework-' + subjectId);
-    if (!container) return;
+    if (!container) {
+        console.error('Container not found for homework-' + subjectId);
+        return;
+    }
     
     const count = container.children.length;
     const newEntry = homeworkEntryTemplate(subjectId, count);
@@ -403,9 +342,11 @@ function updateBookOptions(subjectId) {
         // For new subject form
         mainSelect = document.getElementById('book_select_new');
     } else {
-        // For existing subject forms
-        const form = document.querySelector('input[name="subject_id"][value="' + subjectId + '"]').closest('form');
-        mainSelect = form.querySelector('select[name^="book_"]');
+        // For existing subject forms (handle both regular IDs and unique IDs like "5-1")
+        const card = document.querySelector(`[data-subject-id="${subjectId}"]`);
+        if (card) {
+            mainSelect = card.querySelector('select[name^="book_"]');
+        }
     }
     
     if (!mainSelect) return;
@@ -438,9 +379,11 @@ function updateBookOptionsForContainer(subjectId, containerType) {
         // For new subject form
         mainSelect = document.getElementById('book_select_new');
     } else {
-        // For existing subject forms
-        const form = document.querySelector('input[name="subject_id"][value="' + subjectId + '"]').closest('form');
-        mainSelect = form.querySelector('select[name^="book_"]');
+        // For existing subject forms (handle both regular IDs and unique IDs like "5-1")
+        const card = document.querySelector(`[data-subject-id="${subjectId}"]`);
+        if (card) {
+            mainSelect = card.querySelector('select[name^="book_"]');
+        }
     }
     
     if (!mainSelect) return;
@@ -458,42 +401,238 @@ function updateBookOptionsForContainer(subjectId, containerType) {
 
 
 
-function loadBooksForNewSubject(subjectId) {
-    const bookSelect = document.getElementById('book_select_new');
-    if (!bookSelect) return;
+
+function createNewSubjectCard(subjectId, subjectName) {
+    // Calculate position for this new instance
+    const existingCards = document.querySelectorAll(`[data-subject-id^="${subjectId}-"]`);
+    const existingScheduleCard = document.querySelector(`[data-subject-id="${subjectId}"]:not(.add-new-subject-card)`);
     
-    // Clear existing options except the first one
-    while (bookSelect.children.length > 1) {
-        bookSelect.removeChild(bookSelect.lastChild);
+    // Count existing positions
+    let maxPosition = -1;
+    if (existingScheduleCard) {
+        maxPosition = 0; // First scheduled subject has position 0
     }
+    existingCards.forEach(card => {
+        const cardId = card.getAttribute('data-subject-id');
+        const match = cardId.match(new RegExp(`^${subjectId}-(\\d+)$`));
+        if (match) {
+            const pos = parseInt(match[1]);
+            if (pos > maxPosition) maxPosition = pos;
+        }
+    });
     
-    // Fetch books for the selected subject from the server
-    fetch(`/api/subjects-books/`)
+    const position = maxPosition + 1;
+    const uniqueId = `${subjectId}-${position}`;
+    
+    // Fetch books for this subject
+    fetch('/api/subjects-books/')
         .then(response => response.json())
         .then(data => {
-            if (data.subjects) {
                 const subject = data.subjects.find(s => s.id == subjectId);
-                if (subject && subject.books) {
-                    // Add book options for the selected subject
-                    subject.books.forEach(book => {
-                        const option = document.createElement('option');
-                        option.value = book.id;
-                        option.textContent = book.title;
-                        bookSelect.appendChild(option);
-                    });
+            const books = subject ? subject.books : [];
+            
+            // Build book options HTML
+            let bookOptionsHtml = '<option value="">Select a book</option>';
+            books.forEach(book => {
+                bookOptionsHtml += `<option value="${book.id}">${book.title}</option>`;
+            });
+            
+            // Get CSRF token
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
+            // Create the new subject card HTML with unique ID
+            const newCardHtml = `
+            <div class="subject-card collapsible-card" data-subject-id="${uniqueId}" data-base-subject-id="${subjectId}" data-position="${position}">
+                <div class="card-header" onclick='toggleCard("${uniqueId}")'>
+                    <h3 class="subject-name">${subjectName}${position > 0 ? ' #' + (position + 1) : ''}</h3>
+                    <div class="header-controls">
+                        <span class="toggle-icon">▲</span>
+                    </div>
+                </div>
+                <div class="card-content" id="content-${uniqueId}" style="display: block;">
+                    <form method="POST" class="subject-form">
+                        <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
+                        <input type="hidden" name="subject_id" value="${subjectId}">
+                        <input type="hidden" name="position" value="${position}">
+                        <input type="hidden" name="is_new_subject" value="true">
+                        
+                        <div class="containers-row">
+                            <div class="book-pages-container">
+                                <div class="form-fields-row">
+                                    <div class="form-group">
+                                        <label>Book:</label>
+                                        <select name="book_${uniqueId}" class="book-select">
+                                            ${bookOptionsHtml}
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Pages:</label>
+                                        <input type="text" name="pages_${uniqueId}" placeholder="e.g., 45-50" class="pages-input">
+                                    </div>
+                                </div>
+                                
+                                <div class="extra-entries" id="extra-${uniqueId}"></div>
+                                <button type="button" class="add-more-btn" data-unique-id="${uniqueId}">+ Add more</button>
+                            </div>
+                            
+                            <div class="notes-container">
+                                <div class="form-group">
+                                    <label>Notes:</label>
+                                    <textarea name="notes_${uniqueId}" id="notes_${uniqueId}" class="notes-textarea" placeholder="Enter notes for this subject..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="homework-important-row">
+                            <div class="homework-section">
+                                <h4>Homework</h4>
+                                <div class="homework-entries" id="homework-${uniqueId}"></div>
+                                <button type="button" class="add-homework-btn" data-unique-id="${uniqueId}">+ Add homework</button>
+                            </div>
+                            
+                            <div class="important-notes-section">
+                                <h4>Important Notes:</h4>
+                                <textarea name="important_notes_${uniqueId}" id="important_notes_${uniqueId}" class="important-notes-textarea" placeholder="Enter any important notes for this subject..."></textarea>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            `;
+            
+            // Insert the new card before the "Add New Subject" card
+            const addNewSubjectCard = document.querySelector('.add-new-subject-card');
+            if (addNewSubjectCard) {
+                addNewSubjectCard.insertAdjacentHTML('beforebegin', newCardHtml);
+                
+                // Initialize TipTap editors for the new card
+                const newCard = document.querySelector(`[data-subject-id="${uniqueId}"]`);
+                
+                if (newCard) {
+                    // Attach event listeners to buttons
+                    const addMoreBtn = newCard.querySelector('.add-more-btn');
+                    const addHomeworkBtn = newCard.querySelector('.add-homework-btn');
+                    
+                    if (addMoreBtn) {
+                        const btnUniqueId = addMoreBtn.getAttribute('data-unique-id');
+                        addMoreBtn.addEventListener('click', function() {
+                            addMoreEntry(btnUniqueId);
+                        });
+                    }
+                    
+                    if (addHomeworkBtn) {
+                        const btnUniqueId = addHomeworkBtn.getAttribute('data-unique-id');
+                        addHomeworkBtn.addEventListener('click', function() {
+                            addHomeworkEntry(btnUniqueId);
+                        });
+                    }
+                    
+                    // Initialize TipTap editors for the textareas
+                    const notesTextarea = document.getElementById('notes_' + uniqueId);
+                    const importantNotesTextarea = document.getElementById('important_notes_' + uniqueId);
+                    
+                    // Initialize TipTap editors with a delay to ensure DOM is ready
+                    setTimeout(() => {
+                        console.log('Attempting to initialize TipTap editors for new card:', uniqueId);
+                        console.log('Notes textarea found:', !!notesTextarea);
+                        console.log('Important notes textarea found:', !!importantNotesTextarea);
+                        console.log('window.initRichTextEditor available:', typeof window.initRichTextEditor === 'function');
+                        console.log('TiptapEditor class available:', typeof TiptapEditor);
+                        
+                        // Try direct initialization first
+                        if (typeof TiptapEditor !== 'undefined') {
+                            // Initialize notes editor directly
+                            if (notesTextarea && 
+                                !notesTextarea.hasAttribute('data-tiptap-initialized') && 
+                                !notesTextarea.previousElementSibling?.classList.contains('tiptap-wrapper')) {
+                                console.log(`Initializing notes editor directly for new card: notes_${uniqueId}`);
+                                try {
+                                    notesTextarea.setAttribute('data-tiptap-initialized', 'true');
+                                    new TiptapEditor('notes_' + uniqueId, {
+                                        placeholder: 'Enter notes for this subject...'
+                                    });
+                                    console.log('Notes editor initialized directly');
+                                } catch (error) {
+                                    console.error('Error initializing notes editor directly:', error);
+                                }
+                            }
+                            
+                            // Initialize important notes editor directly
+                            if (importantNotesTextarea && 
+                                !importantNotesTextarea.hasAttribute('data-tiptap-initialized') && 
+                                !importantNotesTextarea.previousElementSibling?.classList.contains('tiptap-wrapper')) {
+                                console.log(`Initializing important notes editor directly for new card: important_notes_${uniqueId}`);
+                                try {
+                                    importantNotesTextarea.setAttribute('data-tiptap-initialized', 'true');
+                                    new TiptapEditor('important_notes_' + uniqueId, {
+                                        placeholder: 'Enter any important notes for this subject...'
+                                    });
+                                    console.log('Important notes editor initialized directly');
+                                } catch (error) {
+                                    console.error('Error initializing important notes editor directly:', error);
+                                }
+                            }
+                        } else {
+                            console.log('TiptapEditor class not available, trying window.initRichTextEditor');
+                            
+                            // Fallback to window.initRichTextEditor
+                            if (typeof window.initRichTextEditor === 'function') {
+                                // Initialize notes editor if not already initialized
+                                if (notesTextarea && 
+                                    !notesTextarea.hasAttribute('data-tiptap-initialized') && 
+                                    !notesTextarea.previousElementSibling?.classList.contains('tiptap-wrapper')) {
+                                    console.log(`Initializing notes editor via window function for new card: notes_${uniqueId}`);
+                                    try {
+                                        window.initRichTextEditor('notes_' + uniqueId);
+                                        console.log('Notes editor initialized via window function');
+                                    } catch (error) {
+                                        console.error('Error initializing notes editor via window function:', error);
+                                    }
+                                }
+                                
+                                // Initialize important notes editor if not already initialized
+                                if (importantNotesTextarea && 
+                                    !importantNotesTextarea.hasAttribute('data-tiptap-initialized') && 
+                                    !importantNotesTextarea.previousElementSibling?.classList.contains('tiptap-wrapper')) {
+                                    console.log(`Initializing important notes editor via window function for new card: important_notes_${uniqueId}`);
+                                    try {
+                                        window.initRichTextEditor('important_notes_' + uniqueId);
+                                        console.log('Important notes editor initialized via window function');
+                                    } catch (error) {
+                                        console.error('Error initializing important notes editor via window function:', error);
+                                    }
+                                }
+                            } else {
+                                console.log('Neither TiptapEditor class nor window.initRichTextEditor available');
+                            }
+                        }
+                    }, 500);
+                    
+                    // Initialize auto-save for the new card
+                    const form = newCard.querySelector('form');
+                    if (form) {
+                        const formInputs = form.querySelectorAll('input, select, textarea');
+                        formInputs.forEach(input => {
+                            if (input.type === 'submit' || input.type === 'hidden') return;
+                            
+                            if (input.type === 'text' || input.tagName === 'TEXTAREA') {
+                                input.addEventListener('input', () => scheduleAutoSave(input));
+                            } else {
+                                input.addEventListener('change', () => scheduleAutoSave(input));
+                            }
+                        });
+                    }
                 }
+                
+                // Store expanded state
+                localStorage.setItem('card-' + uniqueId, 'expanded');
             }
         })
         .catch(error => {
-            console.error('Error fetching books:', error);
-            // Add a placeholder option
-            const option = document.createElement('option');
-            option.value = '';
-            option.textContent = 'No books available';
-            bookSelect.appendChild(option);
+            console.error('Error creating new subject card:', error);
+            alert('Failed to create new subject card. Error: ' + error);
         });
 }
-
 
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize all homework buttons
@@ -512,37 +651,109 @@ document.addEventListener('DOMContentLoaded', function() {
         button.setAttribute('onclick', 'addMoreEntry(' + subjectId + ')');
     });
     
+    // Ensure all TipTap editors are properly initialized (with delay to ensure script is loaded)
+    setTimeout(() => {
+        ensureTipTapEditorsInitialized();
+    }, 500);
     
-    // Handle new subject selection
+    // Handle new subject selection - create card immediately on selection
     const newSubjectSelect = document.getElementById('new_subject_select');
-    const saveNewSubjectBtn = document.getElementById('save_new_subject_btn');
     
-    if (newSubjectSelect && saveNewSubjectBtn) {
+    if (newSubjectSelect) {
         newSubjectSelect.addEventListener('change', function() {
             const selectedSubjectId = this.value;
             const selectedSubjectName = this.options[this.selectedIndex].text;
             
             if (selectedSubjectId) {
-                // Enable save button and update text
-                saveNewSubjectBtn.disabled = false;
-                saveNewSubjectBtn.textContent = 'Save ' + selectedSubjectName;
+                // Create the card immediately when subject is selected
+                createNewSubjectCard(selectedSubjectId, selectedSubjectName);
                 
-                // Load books for the selected subject
-                loadBooksForNewSubject(selectedSubjectId);
-            } else {
-                // Disable save button
-                saveNewSubjectBtn.disabled = true;
-                saveNewSubjectBtn.textContent = 'Save Subject';
+                // Reset the dropdown
+                this.value = '';
                 
-                // Clear book options
-                const bookSelect = document.getElementById('book_select_new');
-                if (bookSelect) {
-                    bookSelect.innerHTML = '<option value="">Select a book</option>';
+                // Collapse the add new subject card
+                const newCardContent = document.getElementById('content-new');
+                const newCardIcon = document.querySelector('.add-new-subject-card .toggle-icon');
+                if (newCardContent) {
+                    newCardContent.style.display = 'none';
+                    if (newCardIcon) newCardIcon.textContent = '▼';
                 }
             }
         });
     }
 });
+
+// Function to ensure all TipTap editors are properly initialized
+function ensureTipTapEditorsInitialized() {
+    console.log('Initializing TipTap editors...');
+    
+    // Check all notes textareas
+    const notesTextareas = document.querySelectorAll('textarea.notes-textarea');
+    console.log(`Found ${notesTextareas.length} notes textareas`);
+    notesTextareas.forEach(textarea => {
+        if (!textarea.hasAttribute('data-tiptap-initialized') && 
+            !textarea.previousElementSibling?.classList.contains('tiptap-wrapper')) {
+            console.log(`Initializing notes editor for: ${textarea.id}`);
+            textarea.setAttribute('data-tiptap-initialized', 'true');
+            if (typeof window.initRichTextEditor === 'function') {
+                window.initRichTextEditor(textarea.id);
+            } else {
+                console.log('window.initRichTextEditor not available yet');
+            }
+        } else {
+            console.log(`Notes editor already initialized for: ${textarea.id}`);
+        }
+    });
+    
+    // Check all important notes textareas
+    const importantNotesTextareas = document.querySelectorAll('textarea.important-notes-textarea');
+    console.log(`Found ${importantNotesTextareas.length} important notes textareas`);
+    importantNotesTextareas.forEach(textarea => {
+        if (!textarea.hasAttribute('data-tiptap-initialized') && 
+            !textarea.previousElementSibling?.classList.contains('tiptap-wrapper')) {
+            console.log(`Initializing important notes editor for: ${textarea.id}`);
+            textarea.setAttribute('data-tiptap-initialized', 'true');
+            if (typeof window.initRichTextEditor === 'function') {
+                window.initRichTextEditor(textarea.id);
+            } else {
+                console.log('window.initRichTextEditor not available yet');
+            }
+        } else {
+            console.log(`Important notes editor already initialized for: ${textarea.id}`);
+        }
+    });
+}
+
+// Function to toggle Add New Subject card
+function toggleAddNewSubject() {
+    const content = document.getElementById('content-new');
+    const icon = document.querySelector('.add-new-subject-card .toggle-icon');
+    const dropdown = document.getElementById('new_subject_select');
+    
+    // Toggle between expanded and collapsed
+    if (content) {
+        const isExpanded = content.style.display === 'block';
+        
+        if (isExpanded) {
+            // Collapse
+            content.style.display = 'none';
+            if (icon) icon.textContent = '▼';
+            localStorage.setItem('card-new', 'collapsed');
+        } else {
+            // Expand
+            content.style.display = 'block';
+            if (icon) icon.textContent = '▲';
+            localStorage.setItem('card-new', 'expanded');
+            
+            // Focus on the dropdown after a short delay
+            if (dropdown) {
+                setTimeout(() => {
+                    dropdown.focus();
+                }, 100);
+            }
+        }
+    }
+}
 
 // Collapsible card functionality
 function toggleCard(subjectId) {
@@ -646,46 +857,97 @@ function scheduleAutoSave(input) {
     const subjectIdInput = form.querySelector('input[name="subject_id"]');
     if (!subjectIdInput) return;
     
-    const subjectId = subjectIdInput.value;
+    const baseSubjectId = subjectIdInput.value;
     
-    // Clear existing timeout for this subject
-    if (autoSaveTimeouts[subjectId]) {
-        clearTimeout(autoSaveTimeouts[subjectId]);
+    console.log('Auto-save triggered for subject:', baseSubjectId, 'input:', input.name);
+    
+    // Skip auto-save for "Add New Subject" form
+    if (baseSubjectId === 'new') {
+        console.log('Skipping auto-save for new subject form');
+        return;
+    }
+    
+    // Check if there's a position field to construct unique ID
+    const positionInput = form.querySelector('input[name="position"]');
+    const position = positionInput ? positionInput.value : '0';
+    
+    // Construct unique ID for this card (e.g., "5-1" for position 1, or "5-0" for position 0)
+    const uniqueId = `${baseSubjectId}-${position}`;
+    
+    // Clear existing timeout for this unique card
+    if (autoSaveTimeouts[uniqueId]) {
+        clearTimeout(autoSaveTimeouts[uniqueId]);
     }
     
     // Auto-save without indicator
     
     // Schedule auto-save after 2 seconds of inactivity
-    autoSaveTimeouts[subjectId] = setTimeout(() => {
-        performAutoSave(subjectId);
+    autoSaveTimeouts[uniqueId] = setTimeout(() => {
+        performAutoSave(uniqueId);
     }, 2000);
 }
 
-function performAutoSave(subjectId) {
-    const form = document.querySelector(`form input[name="subject_id"][value="${subjectId}"]`)?.closest('form');
-    if (!form) return;
+function performAutoSave(uniqueId) {
+    console.log('Performing auto-save for uniqueId:', uniqueId);
+    
+    // Extract base subject ID and position from unique ID
+    // uniqueId is now always "5-0" or "5-1" format
+    const parts = uniqueId.split('-');
+    const baseSubjectId = parts[0];
+    const expectedPosition = parts[1] || '0';
+    
+    console.log('Base subject ID:', baseSubjectId, 'Expected position:', expectedPosition);
+    
+    // Find the correct form by matching both base subject ID and position
+    let form = null;
+    const forms = document.querySelectorAll(`form input[name="subject_id"][value="${baseSubjectId}"]`);
+    for (const subjectInput of forms) {
+        const potentialForm = subjectInput.closest('form');
+        const positionInput = potentialForm.querySelector('input[name="position"]');
+        const formPosition = positionInput ? positionInput.value : '0';
+        if (formPosition === expectedPosition) {
+            form = potentialForm;
+            break;
+        }
+    }
+    
+    if (!form) {
+        console.log('No form found for uniqueId:', uniqueId);
+        return;
+    }
+    
+    console.log('Form found for uniqueId:', uniqueId);
+    
+    // Debug: Show all form field names
+    const allInputs = form.querySelectorAll('input, select, textarea');
+    console.log('Form fields:', Array.from(allInputs).map(input => input.name).filter(name => name));
     
     // Collect form data
     const formData = new FormData(form);
+    
+    // Get position from form (0 for scheduled subjects, >0 for added ones)
+    const position = formData.get('position') || '0';
+    
     const data = {
-        subject_id: subjectId,
+        subject_id: baseSubjectId,
+        position: position,
         date: '{{ today_date|date:"d-m-y" }}',
         {% if username and user_id %}
         username: '{{ username }}',
         user_id: {{ user_id }},
         {% endif %}
-        book_id: formData.get(`book_${subjectId}`) || formData.get('book_new'),
-        pages: formData.get(`pages_${subjectId}`) || formData.get('pages_new'),
-        notes: formData.get(`notes_${subjectId}`) || formData.get('notes_new'),
-        important_notes: formData.get(`important_notes_${subjectId}`) || formData.get('important_notes_new')
+        book_id: formData.get(`book_${uniqueId}`) || '',
+        pages: formData.get(`pages_${uniqueId}`) || '',
+        notes: formData.get(`notes_${uniqueId}`) || '',
+        important_notes: formData.get(`important_notes_${uniqueId}`) || ''
     };
     
     // Collect homework entries - find all homework fields dynamically
     let homeworkIndex = 0;
     for (const [key, value] of formData.entries()) {
-        if (key.startsWith(`homework_book_${subjectId}_`) && value) {
+        if ((key.startsWith(`homework_book_${uniqueId}_`) || key.startsWith(`homework_book_${baseSubjectId}_`)) && value) {
             const index = key.split('_').pop();
-            const homeworkPages = formData.get(`homework_pages_${subjectId}_${index}`);
+            const homeworkPages = formData.get(`homework_pages_${uniqueId}_${index}`) || formData.get(`homework_pages_${baseSubjectId}_${index}`);
             data[`homework_book_${homeworkIndex}`] = value;
             data[`homework_pages_${homeworkIndex}`] = homeworkPages || '';
             homeworkIndex++;
@@ -695,18 +957,18 @@ function performAutoSave(subjectId) {
     // Collect extra entries - find all extra fields dynamically
     let extraIndex = 0;
     for (const [key, value] of formData.entries()) {
-        if (key.startsWith(`extra_book_${subjectId}_`) && value) {
+        if ((key.startsWith(`extra_book_${uniqueId}_`) || key.startsWith(`extra_book_${baseSubjectId}_`)) && value) {
             const index = key.split('_').pop();
-            const extraPages = formData.get(`extra_pages_${subjectId}_${index}`);
+            const extraPages = formData.get(`extra_pages_${uniqueId}_${index}`) || formData.get(`extra_pages_${baseSubjectId}_${index}`);
             data[`extra_book_${extraIndex}`] = value;
             data[`extra_pages_${extraIndex}`] = extraPages || '';
             extraIndex++;
         }
     }
     
-    // Debug: Log the data being sent
-    
     // Send auto-save request
+    console.log('Sending auto-save data:', data);
+    
     fetch('/api/today-autosave/', {
         method: 'POST',
         headers: {

@@ -96,13 +96,14 @@ class DailyEntry(models.Model):
     notes = models.TextField(blank=True, null=True)
     important_notes = models.TextField(blank=True, null=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    position = models.IntegerField(default=0, help_text="Position when same subject appears multiple times per day")
     
     def __str__(self):
-        return f"{self.date} - {self.subject.name}"
+        return f"{self.date} - {self.subject.name} (#{self.position})"
     
     class Meta:
-        ordering = ['date', 'subject__name']
-        unique_together = ['date', 'subject']
+        ordering = ['date', 'subject__name', 'position']
+        unique_together = ['date', 'subject', 'created_by', 'position']
 
 
 class DailyExtra(models.Model):

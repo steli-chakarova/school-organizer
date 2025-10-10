@@ -1076,7 +1076,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize regular notes textareas
     const notesTextareas = document.querySelectorAll('textarea.notes-textarea');
     notesTextareas.forEach(textarea => {
-        if (!textarea.previousElementSibling?.classList.contains('tiptap-wrapper')) {
+        // Check if already has TipTap wrapper or if already initialized
+        if (!textarea.previousElementSibling?.classList.contains('tiptap-wrapper') && 
+            !textarea.hasAttribute('data-tiptap-initialized')) {
+            textarea.setAttribute('data-tiptap-initialized', 'true');
             new TiptapEditor(textarea.id, {
                 placeholder: textarea.placeholder || 'Enter notes for this subject...'
             });
@@ -1086,7 +1089,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize important notes textareas
     const importantNotesTextareas = document.querySelectorAll('textarea.important-notes-textarea');
     importantNotesTextareas.forEach(textarea => {
-        if (!textarea.previousElementSibling?.classList.contains('tiptap-wrapper')) {
+        // Check if already has TipTap wrapper or if already initialized
+        if (!textarea.previousElementSibling?.classList.contains('tiptap-wrapper') && 
+            !textarea.hasAttribute('data-tiptap-initialized')) {
+            textarea.setAttribute('data-tiptap-initialized', 'true');
             new TiptapEditor(textarea.id, {
                 placeholder: textarea.placeholder || 'Enter any important notes for this subject...'
             });
@@ -1096,7 +1102,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize mobile important notes textareas
     const mobileImportantTextareas = document.querySelectorAll('textarea.mobile-important-textarea');
     mobileImportantTextareas.forEach(textarea => {
-        if (!textarea.previousElementSibling?.classList.contains('tiptap-wrapper')) {
+        // Check if already has TipTap wrapper or if already initialized
+        if (!textarea.previousElementSibling?.classList.contains('tiptap-wrapper') && 
+            !textarea.hasAttribute('data-tiptap-initialized')) {
+            textarea.setAttribute('data-tiptap-initialized', 'true');
             new TiptapEditor(textarea.id, {
                 placeholder: textarea.placeholder || 'Important notes...'
             });
@@ -1106,12 +1115,35 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Function to initialize editor for dynamically added textareas
 window.initRichTextEditor = function(textareaId) {
+    console.log('initRichTextEditor called for:', textareaId);
+    console.log('TiptapEditor class available:', typeof TiptapEditor);
+    
     const textarea = document.getElementById(textareaId);
-    if (textarea && !textarea.previousElementSibling?.classList.contains('tiptap-wrapper')) {
-        new TiptapEditor(textareaId, {
-            placeholder: textareaId.includes('important_notes') ? 
-                'Enter any important notes for this subject...' : 
-                'Enter notes for this subject...'
-        });
+    console.log('Textarea found:', !!textarea);
+    console.log('Textarea element:', textarea);
+    console.log('Has tiptap-wrapper sibling:', !!textarea?.previousElementSibling?.classList.contains('tiptap-wrapper'));
+    console.log('Already initialized:', !!textarea?.hasAttribute('data-tiptap-initialized'));
+    
+    if (textarea && 
+        !textarea.previousElementSibling?.classList.contains('tiptap-wrapper') && 
+        !textarea.hasAttribute('data-tiptap-initialized')) {
+        console.log('Initializing TipTap editor for:', textareaId);
+        textarea.setAttribute('data-tiptap-initialized', 'true');
+        try {
+            if (typeof TiptapEditor === 'undefined') {
+                console.error('TiptapEditor class is not defined!');
+                return;
+            }
+            const editor = new TiptapEditor(textareaId, {
+                placeholder: textareaId.includes('important_notes') ? 
+                    'Enter any important notes for this subject...' : 
+                    'Enter notes for this subject...'
+            });
+            console.log('TipTap editor created successfully for:', textareaId, 'editor:', editor);
+        } catch (error) {
+            console.error('Error creating TipTap editor for', textareaId, ':', error);
+        }
+    } else {
+        console.log('TipTap editor not initialized for', textareaId, '- conditions not met');
     }
 };
