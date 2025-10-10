@@ -800,6 +800,8 @@ document.addEventListener('DOMContentLoaded', function() {
 let autoSaveTimeouts = {};
 
 function initializeAutoSave() {
+    console.log('🔧 Initializing auto-save...');
+    
     // Add form submission handler to sync rich text editor content
     const forms = document.querySelectorAll('form');
     forms.forEach(form => {
@@ -820,17 +822,32 @@ function initializeAutoSave() {
     
     // Add auto-save to all form inputs
     const formInputs = document.querySelectorAll('input, select, textarea');
+    console.log('📋 Found', formInputs.length, 'form inputs to initialize');
+    
+    let textInputCount = 0;
+    let textareaCount = 0;
+    let selectCount = 0;
+    
     formInputs.forEach(input => {
         // Skip submit buttons and hidden inputs
         if (input.type === 'submit' || input.type === 'hidden') return;
         
         // Add event listeners for different input types
-        if (input.type === 'text' || input.type === 'textarea') {
+        if (input.type === 'text' || input.tagName === 'TEXTAREA') {
             input.addEventListener('input', () => scheduleAutoSave(input));
+            if (input.tagName === 'TEXTAREA') {
+                textareaCount++;
+                console.log('✅ Added input listener to TEXTAREA:', input.name || input.id);
+            } else {
+                textInputCount++;
+            }
         } else {
             input.addEventListener('change', () => scheduleAutoSave(input));
+            selectCount++;
         }
     });
+    
+    console.log('✅ Auto-save initialized:', textInputCount, 'text inputs,', textareaCount, 'textareas,', selectCount, 'selects');
 }
 
 function initializeAutoSaveForNewEntry(entryElement) {
@@ -841,7 +858,7 @@ function initializeAutoSaveForNewEntry(entryElement) {
         if (input.type === 'submit' || input.type === 'hidden') return;
         
         // Add event listeners for different input types
-        if (input.type === 'text' || input.type === 'textarea') {
+        if (input.type === 'text' || input.tagName === 'TEXTAREA') {
             input.addEventListener('input', () => scheduleAutoSave(input));
         } else {
             input.addEventListener('change', () => scheduleAutoSave(input));
@@ -928,6 +945,10 @@ function performAutoSave(uniqueId) {
     // Get position from form (0 for scheduled subjects, >0 for added ones)
     const position = formData.get('position') || '0';
     
+    // Determine the correct field name suffix
+    // For position 0, fields are named like "book_39", for position > 0, they're "book_39-1"
+    const fieldSuffix = position === '0' ? baseSubjectId : uniqueId;
+    
     const data = {
         subject_id: baseSubjectId,
         position: position,
@@ -936,18 +957,18 @@ function performAutoSave(uniqueId) {
         username: '{{ username }}',
         user_id: {{ user_id }},
         {% endif %}
-        book_id: formData.get(`book_${uniqueId}`) || '',
-        pages: formData.get(`pages_${uniqueId}`) || '',
-        notes: formData.get(`notes_${uniqueId}`) || '',
-        important_notes: formData.get(`important_notes_${uniqueId}`) || ''
+        book_id: formData.get(`book_${fieldSuffix}`) || '',
+        pages: formData.get(`pages_${fieldSuffix}`) || '',
+        notes: formData.get(`notes_${fieldSuffix}`) || '',
+        important_notes: formData.get(`important_notes_${fieldSuffix}`) || ''
     };
     
     // Collect homework entries - find all homework fields dynamically
     let homeworkIndex = 0;
     for (const [key, value] of formData.entries()) {
-        if ((key.startsWith(`homework_book_${uniqueId}_`) || key.startsWith(`homework_book_${baseSubjectId}_`)) && value) {
+        if ((key.startsWith(`homework_book_${fieldSuffix}_`) || key.startsWith(`homework_book_${baseSubjectId}_`)) && value) {
             const index = key.split('_').pop();
-            const homeworkPages = formData.get(`homework_pages_${uniqueId}_${index}`) || formData.get(`homework_pages_${baseSubjectId}_${index}`);
+            const homeworkPages = formData.get(`homework_pages_${fieldSuffix}_${index}`) || formData.get(`homework_pages_${baseSubjectId}_${index}`);
             data[`homework_book_${homeworkIndex}`] = value;
             data[`homework_pages_${homeworkIndex}`] = homeworkPages || '';
             homeworkIndex++;
@@ -957,9 +978,9 @@ function performAutoSave(uniqueId) {
     // Collect extra entries - find all extra fields dynamically
     let extraIndex = 0;
     for (const [key, value] of formData.entries()) {
-        if ((key.startsWith(`extra_book_${uniqueId}_`) || key.startsWith(`extra_book_${baseSubjectId}_`)) && value) {
+        if ((key.startsWith(`extra_book_${fieldSuffix}_`) || key.startsWith(`extra_book_${baseSubjectId}_`)) && value) {
             const index = key.split('_').pop();
-            const extraPages = formData.get(`extra_pages_${uniqueId}_${index}`) || formData.get(`extra_pages_${baseSubjectId}_${index}`);
+            const extraPages = formData.get(`extra_pages_${fieldSuffix}_${index}`) || formData.get(`extra_pages_${baseSubjectId}_${index}`);
             data[`extra_book_${extraIndex}`] = value;
             data[`extra_pages_${extraIndex}`] = extraPages || '';
             extraIndex++;
