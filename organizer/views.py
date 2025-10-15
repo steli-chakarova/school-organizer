@@ -268,31 +268,40 @@ class HomeView(View):
             
             if test_date and test_subject:
                 try:
-                    subject = Subject.objects.get(id=test_subject)
-                    # Check if user can edit this subject
-                    if request.user.can_edit(subject):
-                        test_date_obj = datetime.strptime(test_date, '%Y-%m-%d').date()
-                        
-                        # Determine who should own the test
-                        if request.user.is_admin() and 'target_user_id' in request.session:
-                            # Admin creating test for another user
-                            target_user = User.objects.get(id=request.session['target_user_id'])
-                            test_owner = target_user
-                        else:
-                            # Regular user or admin creating test for themselves
-                            test_owner = request.user
-                        
-                        test, created = Test.objects.get_or_create(
-                            date=test_date_obj,
-                            subject=subject,
+                    test_date_obj = datetime.strptime(test_date, '%Y-%m-%d').date()
+                    
+                    # Determine who should own the test
+                    if request.user.is_admin() and 'target_user_id' in request.session:
+                        test_owner = User.objects.get(id=request.session['target_user_id'])
+                    else:
+                        test_owner = request.user
+                    
+                    # Handle special "Неучебен ден" (Non-school day) case
+                    if test_subject == 'NON_SCHOOL_DAY':
+                        # Get or create the special "Неучебен ден" subject
+                        subject, _ = Subject.objects.get_or_create(
+                            name='Неучебен ден',
                             defaults={'created_by': test_owner}
                         )
-                        if created:
-                            return JsonResponse({'success': True, 'message': 'Test added successfully!'})
-                        else:
-                            return JsonResponse({'success': True, 'message': 'Test already exists for this date and subject.'})
                     else:
-                        return JsonResponse({'success': False, 'error': 'You can only add tests for subjects you created!'})
+                        subject = Subject.objects.get(id=test_subject)
+                        # Check if user can edit this subject
+                        if not request.user.can_edit(subject):
+                            return JsonResponse({'success': False, 'error': 'You can only add tests for subjects you created!'})
+                    
+                    test, created = Test.objects.get_or_create(
+                        date=test_date_obj,
+                        subject=subject,
+                        defaults={'created_by': test_owner}
+                    )
+                    
+                    # Return the actual subject ID (important for "NON_SCHOOL_DAY" which gets converted to a real subject)
+                    return JsonResponse({
+                        'success': True, 
+                        'message': 'Test added successfully!' if created else 'Test already exists for this date and subject.',
+                        'subject_id': subject.id,
+                        'subject_name': subject.name
+                    })
                 except Subject.DoesNotExist:
                     return JsonResponse({'success': False, 'error': 'Subject not found!'})
                 except ValueError:
@@ -1124,6 +1133,9 @@ class HistoryView(View):
         # Get days with tests for highlighting
         days_with_tests = self.get_days_with_tests(year, month, target_user)
         
+        # Get days with "Неучебен ден" for special icon
+        days_with_non_school = self.get_days_with_non_school(year, month, target_user)
+        
         # Get daily data if a date is selected
         daily_data = None
         tests_data = None
@@ -1144,6 +1156,7 @@ class HistoryView(View):
             'cal_data': cal_data,
             'days_with_entries': days_with_entries,
             'days_with_tests': days_with_tests,
+            'days_with_non_school': days_with_non_school,
             'selected_date': selected_date,
             'daily_data': daily_data,
             'tests_data': tests_data,
@@ -1240,6 +1253,38 @@ class HistoryView(View):
                 date__gte=first_day,
                 date__lte=last_day,
                 created_by=self.request.user
+            )
+        
+        return [test.date.day for test in tests]
+    
+    def get_days_with_non_school(self, year, month, target_user=None):
+        """Get list of days that have 'Неучебен ден' (non-school day) for the given month."""
+        first_day = date_module(year, month, 1)
+        last_day = date_module(year, month, calendar.monthrange(year, month)[1])
+        
+        # Filter tests based on user role and target_user
+        if target_user:
+            tests = Test.objects.filter(
+                date__gte=first_day,
+                date__lte=last_day,
+                created_by=target_user,
+                subject__name='Неучебен ден'
+            )
+        elif not self.request.user.is_authenticated:
+            tests = Test.objects.none()
+        elif self.request.user.is_admin():
+            tests = Test.objects.filter(
+                date__gte=first_day,
+                date__lte=last_day,
+                created_by=self.request.user,
+                subject__name='Неучебен ден'
+            )
+        else:
+            tests = Test.objects.filter(
+                date__gte=first_day,
+                date__lte=last_day,
+                created_by=self.request.user,
+                subject__name='Неучебен ден'
             )
         
         return [test.date.day for test in tests]
@@ -1418,7 +1463,14 @@ class HistoryView(View):
             created_by=user_to_filter
         ).select_related('subject').order_by('subject__name')
         
-        return [{'subject_name': test.subject.name} for test in tests]
+        # Check if "Неучебен ден" exists for this date
+        has_non_school_day = tests.filter(subject__name='Неучебен ден').exists()
+        
+        # If "Неучебен ден" exists, only show it (hide other tests)
+        if has_non_school_day:
+            tests = tests.filter(subject__name='Неучебен ден')
+        
+        return [{'subject_name': test.subject.name, 'subject_id': test.subject.id, 'is_non_school_day': test.subject.name == 'Неучебен ден'} for test in tests]
 
 
 # ExportPDFView class removed - using ExportTemplatePDFView instead

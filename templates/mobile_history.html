@@ -60,7 +60,11 @@
                     <span class="mobile-entry-indicator">●</span>
                     {% endif %}
                     {% if day_date.month == month and day_date.day in days_with_tests %}
-                    <span class="mobile-test-indicator{% if selected_date and day_date == selected_date %} selected{% endif %}"></span>
+                        {% if day_date.day in days_with_non_school %}
+                        <span class="mobile-non-school-day-indicator{% if selected_date and day_date == selected_date %} selected{% endif %}"></span>
+                        {% else %}
+                        <span class="mobile-test-indicator{% if selected_date and day_date == selected_date %} selected{% endif %}"></span>
+                        {% endif %}
                     {% endif %}
                 </div>
                 {% endfor %}
@@ -97,7 +101,11 @@
         <div class="mobile-tests-section">
             {% for test in tests_data %}
             <div class="mobile-test-item">
+                {% if test.is_non_school_day %}
+                <strong>{{ test.subject_name }}</strong>
+                {% else %}
                 <strong>Контролно по {{ test.subject_name }}</strong>
+                {% endif %}
             </div>
             {% endfor %}
         </div>

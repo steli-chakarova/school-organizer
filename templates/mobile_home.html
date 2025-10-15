@@ -109,6 +109,7 @@
                         <label for="mobile_test_subject">Subject:</label>
                         <select name="test_subject" id="mobile_test_subject" required>
                             <option value="">Choose a subject...</option>
+                            <option value="NON_SCHOOL_DAY">Неучебен ден</option>
                             {% for subject in subjects %}
                             <option value="{{ subject.id }}">{{ subject.name }}</option>
                             {% endfor %}

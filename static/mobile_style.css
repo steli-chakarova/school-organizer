@@ -2148,6 +2148,34 @@ body {
     filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3));
 }
 
+/* Mobile Non-school day indicator */
+.mobile-non-school-day-indicator {
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    width: 20px;
+    height: 20px;
+    background-image: url('/static/images/wired-flat-63-home-hover-3d-roll.gif');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+    will-change: background-image;
+    z-index: 2;
+}
+
+.mobile-calendar-day:hover .mobile-non-school-day-indicator {
+    opacity: 1;
+    transition: none;
+}
+
+.mobile-non-school-day-indicator.selected {
+    opacity: 1;
+    transition: none;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3));
+}
+
 /* Mobile Tests Display */
 .mobile-tests-section {
     background: #fff3cd;

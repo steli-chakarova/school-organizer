@@ -1176,6 +1176,20 @@ function showSubjectDropdown(dayElement, testEntry) {
     dropdownContent.className = 'subject-dropdown-content';
     dropdownContent.style.padding = '8px 0';
     
+    // Add hardcoded "Неучебен ден" option first
+    const nonSchoolDayOption = document.createElement('div');
+    nonSchoolDayOption.className = 'subject-dropdown-option';
+    nonSchoolDayOption.textContent = 'Неучебен ден';
+    nonSchoolDayOption.dataset.subjectId = 'NON_SCHOOL_DAY';
+    nonSchoolDayOption.dataset.subjectName = 'Неучебен ден';
+    
+    nonSchoolDayOption.addEventListener('click', function(e) {
+        e.stopPropagation();
+        selectSubjectFromDropdown(this, testEntry, dayElement);
+    });
+    
+    dropdownContent.appendChild(nonSchoolDayOption);
+    
     subjects.forEach(subject => {
         const option = document.createElement('div');
         option.className = 'subject-dropdown-option';
@@ -1373,14 +1387,21 @@ function saveTestToServer(date, subjectId, subjectName = null) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Add the test as a chip with subject name
-            addTestChip(date, subjectId, subjectName);
+            // Use the actual subject_id and subject_name from the server response
+            // This is important for "NON_SCHOOL_DAY" which gets converted to a real subject
+            const actualSubjectId = data.subject_id || subjectId;
+            const actualSubjectName = data.subject_name || subjectName;
+            
+            // Add the test as a chip with the actual subject info
+            addTestChip(date, actualSubjectId, actualSubjectName);
         } else {
             console.error('Save failed:', data.error);
+            showTestMessage(data.error || 'Failed to save test', 'error');
         }
     })
     .catch(error => {
         console.error('Error saving test:', error);
+        showTestMessage('Error saving test', 'error');
     });
 }
 
@@ -1417,6 +1438,16 @@ function showTestMessage(message, type) {
 // Chip management functions
 function addTestChip(date, subjectId, subjectName = null) {
     const chipsContainer = document.getElementById('test-chips');
+    
+    // Check if chip already exists
+    const existingChip = chipsContainer.querySelector(
+        `.test-chip[data-date="${date}"][data-subject-id="${subjectId}"]`
+    );
+    if (existingChip) {
+        console.log('Chip already exists, not adding duplicate');
+        clearTestForm();
+        return;
+    }
     
     // Get subject name if not provided
     if (!subjectName) {

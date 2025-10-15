@@ -54,7 +54,11 @@
                     <span class="history-entry-indicator">●</span>
                     {% endif %}
                     {% if day_date.month == month and day_date.day in days_with_tests %}
-                    <span class="test-indicator{% if selected_date and day_date == selected_date %} selected{% endif %}"></span>
+                        {% if day_date.day in days_with_non_school %}
+                        <span class="non-school-day-indicator{% if selected_date and day_date == selected_date %} selected{% endif %}"></span>
+                        {% else %}
+                        <span class="test-indicator{% if selected_date and day_date == selected_date %} selected{% endif %}"></span>
+                        {% endif %}
                     {% endif %}
                     <div class="history-day-actions">
                         {% if can_edit %}
@@ -97,12 +101,20 @@
         <div class="tests-section">
             {% if tests_data|length == 1 %}
             <div class="test-notification">
+                {% if tests_data.0.is_non_school_day %}
+                <strong>{{ tests_data.0.subject_name }}</strong>
+                {% else %}
                 <strong>Контролно по {{ tests_data.0.subject_name }}</strong>
+                {% endif %}
             </div>
             {% else %}
             <div class="test-notification">
                 {% for test in tests_data %}
+                {% if test.is_non_school_day %}
+                <div><strong>{{ test.subject_name }}</strong></div>
+                {% else %}
                 <div><strong>Контролно по {{ test.subject_name }}</strong></div>
+                {% endif %}
                 {% endfor %}
             </div>
             {% endif %}
