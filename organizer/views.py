@@ -126,7 +126,7 @@ class TeacherOrAdminRequiredMixin(LoginRequiredMixin):
                 return redirect('login')
             if not (request.user.is_admin() or request.user.is_teacher()):
                 messages.error(request, 'Access denied. Teacher or Admin privileges required.')
-                return redirect('history')
+                return redirect('login')
             return super().dispatch(request, *args, **kwargs)
         except Exception as e:
             # Handle any sync/async issues gracefully
@@ -542,12 +542,12 @@ class TodayView(View):
     def get(self, request, date=None, username=None, user_id=None):
         # Simple authentication check without session access
         if not hasattr(request, 'user') or not request.user or request.user.is_anonymous:
-            return redirect('history')
+            return redirect('login')
         
         # Check if user has required permissions
         if not (request.user.is_admin() or request.user.is_teacher()):
             messages.error(request, 'Access denied. Teacher or Admin privileges required.')
-            return redirect('history')
+            return redirect('login')
         
         # Determine target user and edit permissions
         target_user = request.user  # Default to current user
@@ -688,12 +688,12 @@ class TodayView(View):
     def post(self, request, date=None, username=None, user_id=None):
         # Simple authentication check without session access
         if not hasattr(request, 'user') or not request.user or request.user.is_anonymous:
-            return redirect('history')
+            return redirect('login')
         
         # Check if user has required permissions
         if not (request.user.is_admin() or request.user.is_teacher()):
             messages.error(request, 'Access denied. Teacher or Admin privileges required.')
-            return redirect('history')
+            return redirect('login')
         
         # Check edit permissions
         if username and user_id:
@@ -1487,7 +1487,7 @@ class ExportJPEGView(View):
                 selected_date = datetime.strptime(date, '%d-%m-%y').date()
             except ValueError:
                 messages.error(request, "Invalid date format")
-                return redirect('history')
+                return redirect('login')
         else:
             selected_date = date_module.today()
         

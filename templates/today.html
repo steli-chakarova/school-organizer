@@ -907,6 +907,12 @@ function scheduleAutoSave(input) {
 function performAutoSave(uniqueId) {
     console.log('Performing auto-save for uniqueId:', uniqueId);
     
+    // Check if user is authenticated before making API calls
+    {% if not user.is_authenticated %}
+    console.log('User not authenticated, skipping auto-save');
+    return;
+    {% endif %}
+    
     // Extract base subject ID and position from unique ID
     // uniqueId is now always "5-0" or "5-1" format
     const parts = uniqueId.split('-');

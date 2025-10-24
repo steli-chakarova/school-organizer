@@ -596,6 +596,12 @@ function scheduleMobileAutoSave(input) {
 }
 
 function performMobileAutoSave(subjectId) {
+    // Check if user is authenticated before making API calls
+    {% if not user.is_authenticated %}
+    console.log('User not authenticated, skipping auto-save');
+    return;
+    {% endif %}
+    
     const form = document.querySelector(`form input[name="subject_id"][value="${subjectId}"]`)?.closest('form');
     if (!form) return;
     
