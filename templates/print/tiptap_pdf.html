@@ -11,31 +11,36 @@
 
     /* Content width = table width; adjust if needed */
     .doc {
-      --content-width: 700px;      /* increased width for better space usage */
+      --content-width: 100%;       /* use full available width */
+      max-width: 100%;
       width: var(--content-width);
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
       font-size: 12px; line-height: 1.4; color: #111;
-      margin: 0 auto;              /* center the content */
+      margin: 0;                   /* no centering margin */
+      padding: 0 5px;              /* minimal side padding */
     }
 
     /* Two-column layout for subject content */
     .subject-content {
       display: flex;
-      margin: 10px 0;
+      margin: 5px 0;
       position: relative;
+      gap: 10px;                   /* use gap instead of padding for cleaner spacing */
+      break-inside: auto;          /* allow subject blocks to break across pages if needed */
     }
 
     .left-column {
-      flex: 1;
-      width: 50%;
-      padding-right: 15px;
+      flex: 2;
+      width: 66.67%;
+      padding-right: 8px;
       box-sizing: border-box;
+      break-inside: auto;          /* allow Notes to flow across pages naturally */
     }
 
     .right-column {
       flex: 1;
-      width: 50%;
-      padding-left: 15px;
+      width: 33.33%;
+      padding-left: 8px;
       box-sizing: border-box;
     }
 
@@ -43,7 +48,7 @@
     .subject-content::after {
       content: '';
       position: absolute;
-      left: 50%;
+      left: 66.67%;
       top: 0;
       bottom: 0;
       width: 1px;
@@ -52,38 +57,101 @@
     }
 
     .section {
-      margin-bottom: 15px;
-      break-inside: avoid;
+      margin-bottom: 8px;         /* reduced from 15px */
+      /* Allow sections to break across pages for natural flow */
+      break-inside: auto;
     }
 
     /* Reduce spacing between Ресурси and Записки */
     .left-column .section:first-of-type {
-      margin-bottom: 8px;
+      margin-bottom: 4px;          /* reduced from 5px */
+    }
+    
+    /* Further reduce spacing for Notes section specifically */
+    .left-column .section:nth-of-type(2) {
+      margin-top: 0;                /* no top margin for Notes section */
+    }
+    
+    /* Remove bottom margin from last section in each column */
+    .left-column .section:last-of-type,
+    .right-column .section:last-of-type {
+      margin-bottom: 0;
     }
 
     .section-title {
       font-weight: 700;
       font-size: 14px;
-      margin-bottom: 5px;
+      margin-bottom: 3px;         /* reduced from 5px */
+      margin-top: 0;
       color: #333;
+    }
+    
+    /* Reduce spacing in notes content - paragraphs, divs, etc. */
+    .section p {
+      margin: 2px 0;              /* minimal paragraph spacing */
+    }
+    
+    .section p:first-child {
+      margin-top: 0;              /* no top margin on first paragraph */
+    }
+    
+    .section p:last-child {
+      margin-bottom: 0;           /* no bottom margin on last paragraph */
+    }
+    
+    /* Reduce spacing in notes divs and other block elements */
+    .section > div:not(.section-title) {
+      margin: 0;
+    }
+    
+    /* Reduce spacing between list items and paragraphs in notes */
+    .section ul + p,
+    .section ol + p,
+    .section p + ul,
+    .section p + ol {
+      margin-top: 4px;
     }
 
     /* Subject title styling with underline */
     h2 {
       border-bottom: 1px solid #d7d7d7;
-      padding-bottom: 5px;
-      margin-bottom: 12px;
+      padding-bottom: 3px;
+      margin-top: 8px;             /* reduced top margin */
+      margin-bottom: 6px;          /* reduced from 12px */
+    }
+    
+    /* Title spacing */
+    h1 {
+      margin-bottom: 6px !important;  /* reduced from 10px */
     }
 
-    /* Tables */
-    .doc table { border-collapse: collapse; width: 100%; }
+    /* Tables - keep together but allow section to break around them */
+    .doc table { 
+      border-collapse: collapse; 
+      width: 100%; 
+      break-inside: avoid;        /* keep table rows together */
+      page-break-inside: avoid;  /* older browser support */
+    }
     .doc th, .doc td { border: 0.5px solid #ddd; padding: 6px; vertical-align: top; }
     .doc thead th { background: #eee; font-weight: 700; }
 
-    /* Lists (bullets & numbers) — keep tight to text */
-    .doc ul { list-style: disc; padding-left: 16px; margin: .3rem 0; }
-    .doc ol { list-style: decimal; padding-left: 18px; margin: .3rem 0; }
-    .doc li { margin: .15rem 0; break-inside: avoid; }
+    /* Lists (bullets & numbers) — allow natural flow across pages */
+    .doc ul { 
+      list-style: disc; 
+      padding-left: 16px; 
+      margin: 2px 0;              /* reduced from .3rem */
+      break-inside: auto;        /* allow lists to break across pages */
+    }
+    .doc ol { 
+      list-style: decimal; 
+      padding-left: 18px; 
+      margin: 2px 0;              /* reduced from .3rem */
+      break-inside: auto;        /* allow lists to break across pages */
+    }
+    .doc li { 
+      margin: 1px 0;              /* reduced from .15rem */
+      break-inside: avoid;       /* keep individual list items together */
+    }
     .doc li::marker { font-size: .95em; }
 
     /* Tiptap task list → [_] / [x] */

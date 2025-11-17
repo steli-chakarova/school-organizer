@@ -25,6 +25,7 @@ urlpatterns = [
     path('export/jpeg/<str:date>/', views.ExportJPEGView.as_view(), name='export_jpeg_date'),
     path('export/template/', views.ExportTemplatePDFView.as_view(), name='export_template'),
     path('export/template/<str:date>/', views.ExportTemplatePDFView.as_view(), name='export_template_date'),
+    path('export/subject-date-range/', views.ExportSubjectDateRangePDFView.as_view(), name='export_subject_date_range'),
     
     # API endpoints
     path('api/subjects-books/', views.SubjectsBooksAPIView.as_view(), name='subjects_books_api'),

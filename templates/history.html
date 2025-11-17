@@ -80,6 +80,50 @@
         </div>
     </div>
     
+    <!-- Subject Date Range Export Form -->
+    <div class="subject-export-section" style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+        <h3 style="margin-top: 0; margin-bottom: 15px;">Export by Subject and Date Range</h3>
+        <form method="get" action="{% url 'export_subject_date_range' %}" id="subject-export-form" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end;">
+            <input type="hidden" name="username" value="{{ username }}">
+            <input type="hidden" name="user_id" value="{{ user_id }}">
+            
+            <div style="flex: 1; min-width: 200px;">
+                <label for="subject_id" style="display: block; margin-bottom: 5px; font-weight: 600;">Subject:</label>
+                <select name="subject_id" id="subject_id" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="">-- Select Subject --</option>
+                    {% for subject in subjects %}
+                    <option value="{{ subject.id }}">{{ subject.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div style="flex: 1; min-width: 150px;">
+                <label for="start_date" style="display: block; margin-bottom: 5px; font-weight: 600;">Start Date:</label>
+                <div style="position: relative;">
+                    <input type="text" name="start_date_display" id="start_date_display" value="{{ yesterday|date:'d/m/Y' }}" placeholder="dd/mm/yyyy" pattern="\d{2}/\d{2}/\d{4}" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; padding-right: 35px;">
+                    <input type="date" id="start_date_picker" value="{{ yesterday|date:'Y-m-d' }}" style="position: absolute; right: 0; top: 0; width: 30px; height: 100%; opacity: 0; cursor: pointer; z-index: 1;">
+                    <input type="hidden" name="start_date" id="start_date" value="{{ yesterday|date:'Y-m-d' }}">
+                </div>
+            </div>
+            
+            <div style="flex: 1; min-width: 150px;">
+                <label for="end_date" style="display: block; margin-bottom: 5px; font-weight: 600;">End Date:</label>
+                <div style="position: relative;">
+                    <input type="text" name="end_date_display" id="end_date_display" value="{{ today|date:'d/m/Y' }}" placeholder="dd/mm/yyyy" pattern="\d{2}/\d{2}/\d{4}" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; padding-right: 35px;">
+                    <input type="date" id="end_date_picker" value="{{ today|date:'Y-m-d' }}" style="position: absolute; right: 0; top: 0; width: 30px; height: 100%; opacity: 0; cursor: pointer; z-index: 1;">
+                    <input type="hidden" name="end_date" id="end_date" value="{{ today|date:'Y-m-d' }}">
+                </div>
+            </div>
+            
+            <div style="flex: 0 0 auto; align-self: flex-end;">
+                <button type="submit" class="history-export-btn" style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span class="desktop-btn-icon pdf-icon"></span>
+                    Export PDF
+                </button>
+            </div>
+        </form>
+    </div>
+    
     <!-- Daily Data Display -->
     {% if selected_date %}
     <div class="history-daily-data">
@@ -251,5 +295,145 @@ function editDate(dateStr) {
     console.log('Edit permission required');
     {% endif %}
 }
+
+// Date formatting and picker functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const startDateDisplay = document.getElementById('start_date_display');
+    const endDateDisplay = document.getElementById('end_date_display');
+    const startDatePicker = document.getElementById('start_date_picker');
+    const endDatePicker = document.getElementById('end_date_picker');
+    const startDateHidden = document.getElementById('start_date');
+    const endDateHidden = document.getElementById('end_date');
+    const startDateLabel = document.querySelector('label[for="start_date"]');
+    const endDateLabel = document.querySelector('label[for="end_date"]');
+    
+    // Convert dd/mm/yyyy to YYYY-MM-DD
+    function convertToISO(dateStr) {
+        if (!dateStr) return '';
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+            const day = parts[0].padStart(2, '0');
+            const month = parts[1].padStart(2, '0');
+            const year = parts[2];
+            return `${year}-${month}-${day}`;
+        }
+        return '';
+    }
+    
+    // Convert YYYY-MM-DD to dd/mm/yyyy
+    function convertToDisplay(dateStr) {
+        if (!dateStr) return '';
+        const parts = dateStr.split('-');
+        if (parts.length === 3) {
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        return '';
+    }
+    
+    // Update display when picker changes
+    function setupPicker(picker, display, hidden) {
+        picker.addEventListener('change', function() {
+            const isoDate = picker.value;
+            if (isoDate) {
+                hidden.value = isoDate;
+                display.value = convertToDisplay(isoDate);
+            }
+        });
+        
+        // Make display input clickable to trigger picker
+        display.addEventListener('click', function() {
+            picker.showPicker();
+        });
+    }
+    
+    // Validate and format date input
+    function formatDateInput(input, picker, hiddenInput) {
+        input.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+            
+            // Format as dd/mm/yyyy
+            if (value.length > 0) {
+                if (value.length <= 2) {
+                    value = value;
+                } else if (value.length <= 4) {
+                    value = value.substring(0, 2) + '/' + value.substring(2);
+                } else {
+                    value = value.substring(0, 2) + '/' + value.substring(2, 4) + '/' + value.substring(4, 8);
+                }
+                e.target.value = value;
+                
+                // Update hidden input and picker
+                if (value.length === 10) {
+                    const isoDate = convertToISO(value);
+                    if (isoDate) {
+                        hiddenInput.value = isoDate;
+                        picker.value = isoDate;
+                    }
+                }
+            }
+        });
+        
+        input.addEventListener('blur', function(e) {
+            const value = e.target.value;
+            if (value && value.length === 10) {
+                const isoDate = convertToISO(value);
+                // Validate date
+                const date = new Date(isoDate);
+                if (isNaN(date.getTime())) {
+                    e.target.setCustomValidity('Please enter a valid date in dd/mm/yyyy format');
+                } else {
+                    e.target.setCustomValidity('');
+                    hiddenInput.value = isoDate;
+                    picker.value = isoDate;
+                }
+            }
+        });
+    }
+    
+    // Setup for start date
+    if (startDateDisplay && startDatePicker && startDateHidden) {
+        formatDateInput(startDateDisplay, startDatePicker, startDateHidden);
+        setupPicker(startDatePicker, startDateDisplay, startDateHidden);
+        
+        if (startDateLabel) {
+            startDateLabel.style.cursor = 'pointer';
+            startDateLabel.addEventListener('click', function() {
+                startDatePicker.showPicker();
+            });
+        }
+    }
+    
+    // Setup for end date
+    if (endDateDisplay && endDatePicker && endDateHidden) {
+        formatDateInput(endDateDisplay, endDatePicker, endDateHidden);
+        setupPicker(endDatePicker, endDateDisplay, endDateHidden);
+        
+        if (endDateLabel) {
+            endDateLabel.style.cursor = 'pointer';
+            endDateLabel.addEventListener('click', function() {
+                endDatePicker.showPicker();
+            });
+        }
+    }
+    
+    // Update hidden inputs before form submission
+    const form = document.getElementById('subject-export-form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (startDateDisplay && startDateHidden) {
+                const isoDate = convertToISO(startDateDisplay.value);
+                if (isoDate) {
+                    startDateHidden.value = isoDate;
+                }
+            }
+            if (endDateDisplay && endDateHidden) {
+                const isoDate = convertToISO(endDateDisplay.value);
+                if (isoDate) {
+                    endDateHidden.value = isoDate;
+                }
+            }
+        });
+    }
+});
 </script>
 {% endblock %}

@@ -1149,6 +1149,14 @@ class HistoryView(View):
         next_month = month + 1 if month < 12 else 1
         next_year = year if month < 12 else year + 1
         
+        # Get subjects for the export dropdown
+        subjects = Subject.objects.filter(created_by=target_user).order_by('name')
+        
+        # Calculate yesterday and today for date pre-filling
+        from datetime import date as date_module, timedelta
+        today = date_module.today()
+        yesterday = today - timedelta(days=1)
+        
         template = 'mobile_history.html' if is_mobile_device(request) else 'history.html'
         return render(request, template, {
             'year': year,
@@ -1168,7 +1176,10 @@ class HistoryView(View):
             'target_user': target_user,
             'username': username,
             'user_id': user_id,
-            'can_edit': can_edit
+            'can_edit': can_edit,
+            'subjects': subjects,
+            'yesterday': yesterday,
+            'today': today
         })
     
     def generate_calendar_data(self, year, month):
@@ -1557,7 +1568,7 @@ class ExportJPEGView(View):
         html_parts = []
         
         # Title
-        html_parts.append(f'<h1 style="text-align: center; font-size: 18px; margin-bottom: 10px;">{selected_date.strftime("%d %B %Y")}</h1>')
+        html_parts.append(f'<h1 style="text-align: center; font-size: 18px; margin-bottom: 6px;">{selected_date.strftime("%d %B %Y")}</h1>')
         
         # Check if there's any data
         has_data = any(entry['has_entry'] for entry in daily_data)
@@ -1569,7 +1580,7 @@ class ExportJPEGView(View):
             for entry in daily_data:
                 if entry['has_entry']:
                     # Subject title
-                    html_parts.append(f'<h2 style="font-size: 16px; margin: 15px 0 8px 0;">{entry["subject_name"]}</h2>')
+                    html_parts.append(f'<h2 style="font-size: 16px; margin: 8px 0 6px 0;">{entry["subject_name"]}</h2>')
                     
                     # Start two-column layout
                     html_parts.append('<div class="subject-content">')
@@ -1963,7 +1974,7 @@ class ExportTemplatePDFView(View):
         html_parts = []
         
         # Title
-        html_parts.append(f'<h1 style="text-align: center; font-size: 18px; margin-bottom: 10px;">{selected_date.strftime("%d %B %Y")}</h1>')
+        html_parts.append(f'<h1 style="text-align: center; font-size: 18px; margin-bottom: 6px;">{selected_date.strftime("%d %B %Y")}</h1>')
         
         # Check if there's any data
         has_data = any(entry['has_entry'] for entry in daily_data)
@@ -1975,7 +1986,7 @@ class ExportTemplatePDFView(View):
             for entry in daily_data:
                 if entry['has_entry']:
                     # Subject title
-                    html_parts.append(f'<h2 style="font-size: 16px; margin: 15px 0 8px 0;">{entry["subject_name"]}</h2>')
+                    html_parts.append(f'<h2 style="font-size: 16px; margin: 8px 0 6px 0;">{entry["subject_name"]}</h2>')
                     
                     # Start two-column layout
                     html_parts.append('<div class="subject-content">')
@@ -2035,6 +2046,243 @@ class ExportTemplatePDFView(View):
                     
                     html_parts.append('</div>')  # End right column
                     html_parts.append('</div>')  # End subject-content
+        
+        return ''.join(html_parts)
+
+
+class ExportSubjectDateRangePDFView(View):
+    def get(self, request):
+        from django.template.loader import render_to_string
+        from datetime import date as date_module
+        
+        # Get parameters from query string
+        subject_id = request.GET.get('subject_id')
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        username = request.GET.get('username')
+        user_id = request.GET.get('user_id')
+        
+        # Validate parameters
+        if not subject_id or not start_date_str or not end_date_str:
+            messages.error(request, "Missing required parameters: subject_id, start_date, end_date")
+            return redirect('history_user', username=username, user_id=user_id) if username and user_id else redirect('home')
+        
+        # Parse dates (format: YYYY-MM-DD)
+        try:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+        except ValueError:
+            messages.error(request, "Invalid date format. Use YYYY-MM-DD")
+            return redirect('history_user', username=username, user_id=user_id) if username and user_id else redirect('home')
+        
+        # Validate date range
+        if start_date > end_date:
+            messages.error(request, "Start date must be before or equal to end date")
+            return redirect('history_user', username=username, user_id=user_id) if username and user_id else redirect('home')
+        
+        # Get target user
+        target_user = request.user
+        if username and user_id:
+            try:
+                target_user = User.objects.get(username__iexact=username, id=user_id)
+            except User.DoesNotExist:
+                messages.error(request, "User not found")
+                return redirect('home')
+        
+        # Get subject
+        try:
+            subject = Subject.objects.get(id=subject_id, created_by=target_user)
+        except Subject.DoesNotExist:
+            messages.error(request, "Subject not found")
+            return redirect('history_user', username=username, user_id=user_id) if username and user_id else redirect('home')
+        
+        # Get all daily entries for this subject in the date range
+        daily_entries = DailyEntry.objects.filter(
+            subject=subject,
+            date__gte=start_date,
+            date__lte=end_date,
+            created_by=target_user
+        ).select_related('book', 'subject').prefetch_related('extras__book', 'homework_entries__book').order_by('date', 'position', 'id')
+        
+        # Group entries by date and build data structure
+        entries_by_date = {}
+        for entry in daily_entries:
+            entry_date = entry.date
+            if entry_date not in entries_by_date:
+                entries_by_date[entry_date] = []
+            
+            # Get book information
+            book_name = entry.book.title if entry.book else ""
+            pages = entry.pages or ""
+            
+            # Get extras
+            extras = []
+            for extra in entry.extras.all():
+                extras.append({
+                    'book_name': extra.book.title if extra.book else "",
+                    'pages': extra.pages or ""
+                })
+            
+            # Get homework
+            homework = []
+            for hw in entry.homework_entries.all():
+                homework.append({
+                    'book_name': hw.book.title if hw.book else "",
+                    'pages': hw.pages or ""
+                })
+            
+            # Check if entry has meaningful content
+            def has_meaningful_content(text):
+                if not text:
+                    return False
+                stripped = text.strip()
+                if not stripped:
+                    return False
+                empty_patterns = ['<br>', '<br/>', '<br />', '<p></p>', '<p><br></p>', '<p><br/></p>']
+                return stripped not in empty_patterns
+            
+            has_content = (
+                (pages and pages.strip()) or
+                has_meaningful_content(entry.notes) or
+                has_meaningful_content(entry.important_notes) or
+                len(extras) > 0 or
+                len(homework) > 0
+            )
+            
+            if has_content:
+                entries_by_date[entry_date].append({
+                    'book_name': book_name,
+                    'pages': pages,
+                    'extras': extras,
+                    'homework': homework,
+                    'notes': entry.notes or "",
+                    'important_notes': entry.important_notes or "",
+                    'position': entry.position
+                })
+        
+        # Build HTML content grouped by date
+        html_content = self.build_html_content_by_date(entries_by_date, subject.name, start_date, end_date)
+        
+        # Render the template
+        html = render_to_string('print/tiptap_pdf.html', {'doc_html': html_content})
+        
+        # Generate PDF using Playwright
+        from .pdf_service import get_browser
+        browser, playwright = get_browser()
+        page = browser.new_page()
+        
+        try:
+            page.set_content(html, wait_until="load")
+            
+            # Generate PDF
+            pdf_bytes = page.pdf(
+                format="A4",
+                print_background=True,
+                margin={"top": "10mm", "right": "5mm", "bottom": "15mm", "left": "5mm"},
+            )
+        finally:
+            page.close()
+            browser.close()
+            playwright.stop()
+        
+        # Format dates for filename (dd.mm.yyyy)
+        start_date_formatted = start_date.strftime("%d.%m.%Y")
+        end_date_formatted = end_date.strftime("%d.%m.%Y")
+        
+        # Create PDF response
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{subject.name}_за_дата_{start_date_formatted}_{end_date_formatted}.pdf"'
+        
+        return response
+    
+    def build_html_content_by_date(self, entries_by_date, subject_name, start_date, end_date):
+        """Build HTML content grouped by date for subject date range export"""
+        html_parts = []
+        
+        # Title with subject name and date range (format: dd.mm.yyyy)
+        start_date_formatted = start_date.strftime("%d.%m.%Y")
+        end_date_formatted = end_date.strftime("%d.%m.%Y")
+        title = f"{subject_name} за дата: {start_date_formatted} - {end_date_formatted}"
+        html_parts.append(f'<h1 style="text-align: center; font-size: 18px; margin-bottom: 6px;">{title}</h1>')
+        
+        # Check if there's any data
+        if not entries_by_date:
+            html_parts.append('<p>No data found for this subject in the selected date range.</p>')
+            return ''.join(html_parts)
+        
+        # Sort dates
+        sorted_dates = sorted(entries_by_date.keys())
+        
+        # Add each date's data
+        for entry_date in sorted_dates:
+            date_entries = entries_by_date[entry_date]
+            
+            # Format date as dd.mm.yyyy for display
+            date_formatted = entry_date.strftime("%d.%m.%Y")
+            
+            # For each entry at this date (in case of duplicates)
+            for entry in date_entries:
+                # Date as title instead of subject name (increased spacing between dates)
+                html_parts.append(f'<h2 style="font-size: 16px; margin: 15px 0 8px 0;">{date_formatted}</h2>')
+                
+                # Start two-column layout
+                html_parts.append('<div class="subject-content">')
+                
+                # Left column: Resources and Notes
+                html_parts.append('<div class="left-column">')
+                
+                # Resources section
+                if entry['book_name'] or entry['extras']:
+                    html_parts.append('<div class="section">')
+                    html_parts.append('<div class="section-title">Ресурси:</div>')
+                    
+                    # Main book
+                    if entry['book_name']:
+                        resource_text = f"→ {entry['book_name']}"
+                        if entry['pages']:
+                            resource_text += f" стр. {entry['pages']}"
+                        html_parts.append(f'<p>{resource_text}</p>')
+                    
+                    # Extra books
+                    for extra in entry['extras']:
+                        extra_text = f"→ {extra['book_name']}"
+                        if extra['pages']:
+                            extra_text += f" стр. {extra['pages']}"
+                        html_parts.append(f'<p>{extra_text}</p>')
+                    html_parts.append('</div>')
+                
+                # Notes
+                if entry['notes']:
+                    html_parts.append('<div class="section">')
+                    html_parts.append('<div class="section-title">Записки:</div>')
+                    html_parts.append(entry['notes'])
+                    html_parts.append('</div>')
+                
+                html_parts.append('</div>')  # End left column
+                
+                # Right column: Important Notes and Homework
+                html_parts.append('<div class="right-column">')
+                
+                # Important Notes
+                if entry.get('important_notes'):
+                    html_parts.append('<div class="section">')
+                    html_parts.append('<div class="section-title">Важно:</div>')
+                    html_parts.append(entry['important_notes'])
+                    html_parts.append('</div>')
+                
+                # Homework
+                if entry['homework']:
+                    html_parts.append('<div class="section">')
+                    html_parts.append('<div class="section-title">Домашно:</div>')
+                    for hw in entry['homework']:
+                        hw_text = f"→ {hw['book_name']}"
+                        if hw['pages']:
+                            hw_text += f" стр. {hw['pages']}"
+                        html_parts.append(f'<p>{hw_text}</p>')
+                    html_parts.append('</div>')
+                
+                html_parts.append('</div>')  # End right column
+                html_parts.append('</div>')  # End subject-content
         
         return ''.join(html_parts)
 
