@@ -951,9 +951,11 @@ function performAutoSave(uniqueId) {
     // Get position from form (0 for scheduled subjects, >0 for added ones)
     const position = formData.get('position') || '0';
     
-    // Determine the correct field name suffix
-    // For position 0, fields are named like "book_39", for position > 0, they're "book_39-1"
-    const fieldSuffix = position === '0' ? baseSubjectId : uniqueId;
+    // Determine the actual suffix used by the form inputs.
+    // New subjects that aren't in the weekly schedule name their fields with the uniqueId
+    // even when position is 0 (e.g., "book_42-0"). Scheduled subjects keep "book_42".
+    const usesUniqueSuffix = !!form.querySelector(`[name="book_${uniqueId}"]`);
+    const fieldSuffix = usesUniqueSuffix ? uniqueId : baseSubjectId;
     
     const data = {
         subject_id: baseSubjectId,
